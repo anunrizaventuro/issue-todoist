@@ -1,0 +1,120 @@
+import { InteractionResponseType, InteractionType, verifyKey } from 'discord-interactions';
+import { isCommandName, type CommandName } from './commands.ts';
+import { buildIssueModal, deferEphemeral, ephemeral, MODAL_PREFIX, RAW_INPUT_ID } from './discord.ts';
+import { editOriginalResponse } from './followup.ts';
+import { attachmentsOf, authorOf, findValue, sourceLinkOf, type Interaction } from './interaction.ts';
+import { processSubmission } from './process.ts';
+import { resultMessage } from './result.ts';
+import type { Env } from './env.ts';
+
+/** Schedules background work that must outlive the response (Workers: ctx.waitUntil). */
+export type WaitUntil = (promise: Promise<unknown>) => void;
+
+/** Shortest issue we accept. Discord's client enforces the same via min_length. */
+const MIN_ISSUE_LENGTH = 10;
+
+/**
+ * Handles one Discord interaction request.
+ *
+ * Deliberately free of Workers-specific globals so it can run under plain Node
+ * in tests. The runtime adapter lives in index.ts.
+ *
+ * Discord requires an initial response within 3 seconds, so anything slower
+ * than a static reply ACKs first (DEFERRED) and finishes through `waitUntil`.
+ * The interaction token stays valid for 15 minutes.
+ */
+export async function handleInteraction(
+  request: Request,
+  env: Env,
+  waitUntil: WaitUntil,
+): Promise<Response> {
+  if (request.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 });
+  }
+
+  // The raw body must be read before parsing: the signature covers the exact bytes.
+  const rawBody = await request.text();
+  const signature = request.headers.get('X-Signature-Ed25519');
+  const timestamp = request.headers.get('X-Signature-Timestamp');
+
+  if (!signature || !timestamp) {
+    return new Response('Missing signature headers', { status: 401 });
+  }
+
+  const valid = await verifyKey(rawBody, signature, timestamp, env.DISCORD_PUBLIC_KEY);
+  if (!valid) {
+    return new Response('Invalid request signature', { status: 401 });
+  }
+
+  let interaction: Interaction;
+  try {
+    interaction = JSON.parse(rawBody) as Interaction;
+  } catch {
+    return new Response('Malformed body', { status: 400 });
+  }
+
+  switch (interaction.type) {
+    // Discord sends a PING when the Interactions Endpoint URL is saved, and
+    // periodically afterwards. Failing this check un-registers the endpoint.
+    case InteractionType.PING:
+      return json({ type: InteractionResponseType.PONG });
+
+    case InteractionType.APPLICATION_COMMAND: {
+      const name = interaction.data?.name;
+      if (!isCommandName(name)) {
+        return json(ephemeral('Command tidak dikenal.'));
+      }
+      // Opening a modal needs no backend work, so it answers well inside the
+      // 3-second budget without deferring.
+      return json(buildIssueModal(name));
+    }
+
+    case InteractionType.MODAL_SUBMIT:
+      return handleModalSubmit(interaction, env, waitUntil);
+
+    default:
+      return new Response('Unhandled interaction type', { status: 400 });
+  }
+}
+
+function handleModalSubmit(interaction: Interaction, env: Env, waitUntil: WaitUntil): Response {
+  const command = interaction.data?.custom_id?.slice(MODAL_PREFIX.length);
+  if (!interaction.data?.custom_id?.startsWith(MODAL_PREFIX) || !isCommandName(command)) {
+    return json(ephemeral('Form tidak dikenal.'));
+  }
+
+  const rawInput = findValue(interaction.data.components, RAW_INPUT_ID)?.trim() ?? '';
+  if (rawInput.length < MIN_ISSUE_LENGTH) {
+    // Rejected before any API call is made.
+    return json(ephemeral('Issue-nya terlalu pendek. Tolong tulis sedikit lebih detail.'));
+  }
+
+  // ACK now, work later: everything past this point is outside the 3-second budget.
+  waitUntil(createAndReport(interaction, env, command, rawInput));
+  return json(deferEphemeral());
+}
+
+async function createAndReport(
+  interaction: Interaction,
+  env: Env,
+  command: CommandName,
+  rawInput: string,
+): Promise<void> {
+  const context = {
+    command,
+    rawInput,
+    author: authorOf(interaction),
+    sourceLink: sourceLinkOf(interaction),
+    attachments: attachmentsOf(interaction),
+  };
+
+  const result = await processSubmission(env, context);
+  await editOriginalResponse(interaction, resultMessage(result, context));
+}
+
+export function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}

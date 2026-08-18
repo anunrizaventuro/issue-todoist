@@ -1,0 +1,11 @@
+{
+  // Project for code that runs under Node (tests, one-off scripts). It never
+  // reaches Workers-only globals: handler.ts is written against web-standard
+  // Request/Response, and index.ts (the Workers adapter) is checked by the
+  // main tsconfig instead.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["test/**/*.ts", "scripts/**/*.ts"]
+}

@@ -1,0 +1,108 @@
+import type { CommandName } from './commands.ts';
+import type { DiscordAttachment } from './interaction.ts';
+
+/**
+ * The structured issue.
+ *
+ * Claude produces this once a key is configured; until then `fromRawInput`
+ * produces the same shape from the user's text as-is. Everything downstream
+ * (Todoist, the Discord embed) only ever sees this type, so switching the
+ * source changes nothing else.
+ */
+export interface NormalizedIssue {
+  title: string;
+  problem: string;
+  expected: string | null;
+  action: string | null;
+  /** Todoist scale: 1 = normal ... 4 = urgent. Inverted from p1-p4 in the UI. */
+  priority: 1 | 2 | 3 | 4;
+  /** English or an ISO date — Todoist cannot parse Indonesian dates. */
+  dueString: string | null;
+  needsClarification: boolean;
+  clarification: string | null;
+}
+
+export interface IssueContext {
+  command: CommandName;
+  rawInput: string;
+  author: string;
+  sourceLink: string | null;
+  attachments: DiscordAttachment[];
+  /** False when Claude was unavailable and the text was passed through as-is. */
+  normalized: boolean;
+}
+
+/** Todoist truncates long titles in list views, so keep them scannable. */
+const MAX_TITLE_LENGTH = 100;
+
+/**
+ * Passthrough used when no Claude key is configured, and as the fallback when
+ * the Claude call fails. Never invents anything: the title is the user's own
+ * first line, and the body is their text verbatim.
+ */
+export function fromRawInput(rawInput: string): NormalizedIssue {
+  return {
+    title: firstLine(rawInput),
+    problem: rawInput,
+    expected: null,
+    action: null,
+    priority: 1,
+    dueString: null,
+    needsClarification: false,
+    clarification: null,
+  };
+}
+
+function firstLine(text: string): string {
+  const line = text.split('\n').map((l) => l.trim()).find(Boolean) ?? text.trim();
+  if (line.length <= MAX_TITLE_LENGTH) return line;
+
+  // Prefer cutting at a word boundary over slicing mid-word.
+  const clipped = line.slice(0, MAX_TITLE_LENGTH - 1);
+  const lastSpace = clipped.lastIndexOf(' ');
+  return `${(lastSpace > 40 ? clipped.slice(0, lastSpace) : clipped).trimEnd()}…`;
+}
+
+/**
+ * Renders the Todoist description in Markdown.
+ *
+ * Empty sections are omitted entirely — a template full of "Expected: -" is
+ * noise, and this is meant to stay lighter than a Jira ticket.
+ */
+export function renderDescription(issue: NormalizedIssue, context: IssueContext): string {
+  const blocks: string[] = [];
+
+  if (context.normalized) {
+    blocks.push(`**Masalah**\n${issue.problem}`);
+    if (issue.expected) blocks.push(`**Harapan**\n${issue.expected}`);
+    if (issue.action) blocks.push(`**Langkah**\n${issue.action}`);
+  } else {
+    // Nothing was restructured, so presenting it under headings would imply a
+    // rigour that isn't there.
+    blocks.push(issue.problem);
+  }
+
+  if (issue.needsClarification && issue.clarification) {
+    blocks.push(`**Perlu diperjelas**\n${issue.clarification}`);
+  }
+
+  if (context.attachments.length > 0) {
+    const links = context.attachments
+      .map((a) => `- [${a.filename}](${a.url})`)
+      .join('\n');
+    blocks.push(`**Gambar**\n${links}\n\n⚠️ Link Discord kedaluwarsa ~24 jam.`);
+  }
+
+  const source = context.sourceLink
+    ? `dari @${context.author} di [Discord](${context.sourceLink})`
+    : `dari @${context.author} di Discord`;
+  const footer = context.normalized
+    ? `---\n📥 ${source}\n\n**Tulisan asli:**\n${quote(context.rawInput)}`
+    : `---\n📥 ${source}`;
+
+  return `${blocks.join('\n\n')}\n\n${footer}`;
+}
+
+function quote(text: string): string {
+  return text.split('\n').map((line) => `> ${line}`).join('\n');
+}
