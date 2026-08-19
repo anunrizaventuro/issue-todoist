@@ -10,7 +10,9 @@ export const env: Env = {
     publicKey.export({ format: 'jwk' }).x as string,
     'base64url',
   ).toString('hex'),
-  ANTHROPIC_API_KEY: 'unused',
+  // Empty on purpose: these tests exercise the raw-text path. Claude itself is
+  // covered in claude.test.ts with an injected fetch.
+  ANTHROPIC_API_KEY: '',
   TODOIST_API_TOKEN: 'unused',
   ALLOWED_GUILD_IDS: '',
 };
