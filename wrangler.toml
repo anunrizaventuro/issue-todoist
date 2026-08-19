@@ -4,7 +4,13 @@ compatibility_date = "2026-08-18"
 compatibility_flags = ["nodejs_compat"]
 
 # Non-secret config. Secrets are set with `wrangler secret put <NAME>`:
-#   DISCORD_PUBLIC_KEY, ANTHROPIC_API_KEY, TODOIST_API_TOKEN
+#   DISCORD_PUBLIC_KEY, LLM_API_KEY, TODOIST_API_TOKEN
 # (DISCORD_BOT_TOKEN is only used by scripts/register.ts and is never read by the Worker.)
+#
+# LLM_BASE_URL is the root of any OpenAI-compatible API, without
+# `/chat/completions` — e.g. https://openrouter.ai/api/v1. Empty here means
+# reports are filed as raw text instead of being normalized.
 [vars]
 ALLOWED_GUILD_IDS = ""
+LLM_BASE_URL = ""
+LLM_MODEL = ""

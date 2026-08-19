@@ -10,9 +10,11 @@ export const env: Env = {
     publicKey.export({ format: 'jwk' }).x as string,
     'base64url',
   ).toString('hex'),
-  // Empty on purpose: these tests exercise the raw-text path. Claude itself is
-  // covered in claude.test.ts with an injected fetch.
-  ANTHROPIC_API_KEY: '',
+  // Empty on purpose: these tests exercise the raw-text path. The provider call
+  // itself is covered in llm.test.ts with an injected fetch.
+  LLM_BASE_URL: '',
+  LLM_MODEL: '',
+  LLM_API_KEY: '',
   TODOIST_API_TOKEN: 'unused',
   ALLOWED_GUILD_IDS: '',
 };

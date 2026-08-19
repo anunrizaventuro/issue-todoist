@@ -2,7 +2,7 @@
  * Every slash command maps deterministically to one Todoist destination.
  *
  * Adding `/bug`, `/design`, ... means adding an entry here and re-running
- * `npm run register`. Claude never picks the project — routing is code's job.
+ * `npm run register`. The LLM never picks the project — routing is code's job.
  */
 export interface CommandConfig {
   /** Todoist project the issue is filed into. */

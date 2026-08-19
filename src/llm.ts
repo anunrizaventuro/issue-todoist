@@ -1,19 +1,35 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { clipTitle, type NormalizedIssue } from './issue.ts';
+import type { Env } from './env.ts';
 
 /**
  * Rewrites a messy Discord message into a structured issue.
  *
- * Every failure path returns null rather than throwing: a submission that
- * Claude cannot process must still reach Todoist as raw text, so the reporter
- * never loses what they wrote. The caller falls back to `fromRawInput`.
+ * Talks to any OpenAI-compatible `/chat/completions` endpoint — OpenRouter,
+ * OpenAI, Groq, DeepSeek, Ollama — so switching provider is a config change,
+ * never a code change.
+ *
+ * Every failure path returns null rather than throwing: a submission the model
+ * cannot process must still reach Todoist as raw text, so the reporter never
+ * loses what they wrote. The caller falls back to `fromRawInput`.
  */
 
-const MODEL = 'claude-opus-5';
+export interface LlmConfig {
+  /** Without a trailing slash by the time it is used; see `configFromEnv`. */
+  baseUrl: string;
+  model: string;
+  apiKey: string;
+}
+
+/**
+ * The reporter is waiting on a deferred Discord reply, so fail fast and let the
+ * raw-text fallback answer rather than hanging on a slow provider.
+ */
+const TIMEOUT_MS = 20_000;
 
 /**
  * Mirrors NormalizedIssue. `additionalProperties: false` plus a full `required`
- * list is what makes the structured output reliable enough to trust downstream.
+ * list is what `strict: true` demands, and what makes the structured output
+ * reliable enough to trust downstream.
  */
 const SCHEMA = {
   type: 'object',
@@ -50,54 +66,90 @@ const SYSTEM = [
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
   '- Set needsClarification hanya bila laporannya benar-benar tidak bisa dikerjakan tanpa jawaban.',
+  '',
+  // Repeated here because `response_format` is honoured unevenly across
+  // OpenAI-compatible providers; a provider that ignores it still gets the shape.
+  'Balas hanya dengan satu objek JSON sesuai skema ini, tanpa teks lain:',
+  JSON.stringify(SCHEMA),
 ].join('\n');
 
-export async function normalizeIssue(
-  apiKey: string,
-  rawInput: string,
-  fetchImpl?: typeof fetch,
-): Promise<NormalizedIssue | null> {
-  const client = new Anthropic({
-    apiKey,
-    // The reporter is waiting on a deferred Discord reply, so fail fast and let
-    // the raw-text fallback answer rather than retrying into a timeout.
-    maxRetries: 1,
-    ...(fetchImpl ? { fetch: fetchImpl } : {}),
-  });
+/**
+ * Reads the provider settings, or null when they are incomplete.
+ *
+ * All three are needed to make a call, so a half-filled config is treated the
+ * same as no config at all: skip normalization rather than fail the submission.
+ */
+export function configFromEnv(env: Env): LlmConfig | null {
+  const baseUrl = env.LLM_BASE_URL?.trim().replace(/\/+$/, '') ?? '';
+  const model = env.LLM_MODEL?.trim() ?? '';
+  const apiKey = env.LLM_API_KEY?.trim() ?? '';
 
+  return baseUrl && model && apiKey ? { baseUrl, model, apiKey } : null;
+}
+
+export async function normalizeIssue(
+  config: LlmConfig,
+  rawInput: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<NormalizedIssue | null> {
   try {
-    const response = await client.messages.create({
-      model: MODEL,
-      max_tokens: 16000,
-      system: SYSTEM,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMA } },
-      messages: [{ role: 'user', content: rawInput }],
+    const response = await fetchImpl(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${config.apiKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        // Some gateways stream unless told not to, and SSE frames are not JSON.
+        stream: false,
+        max_tokens: 2000,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: rawInput },
+        ],
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'issue', strict: true, schema: SCHEMA },
+        },
+      }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
-    if (response.stop_reason === 'refusal') {
-      console.error('Claude refused to normalize', response.stop_details);
+    if (!response.ok) {
+      console.error('LLM normalize failed', response.status, await response.text());
       return null;
     }
 
-    const text = response.content.find((block) => block.type === 'text')?.text;
-    return text ? toIssue(text) : null;
+    const message = (await response.json() as ChatCompletion)?.choices?.[0]?.message;
+    if (message?.refusal) {
+      console.error('LLM refused to normalize', message.refusal);
+      return null;
+    }
+
+    return message?.content ? toIssue(message.content) : null;
   } catch (cause) {
-    console.error('Claude normalize failed', cause);
+    console.error('LLM normalize failed', cause);
     return null;
   }
 }
 
+/** Only the fields read above; providers add plenty more that is ignored. */
+interface ChatCompletion {
+  choices?: { message?: { content?: string | null; refusal?: string | null } }[];
+}
+
 /**
- * Validates before trusting. The schema is enforced server-side, but a bad
- * value reaching Todoist fails the whole submission, so it is re-checked here.
+ * Validates before trusting. The schema is enforced provider-side, but not
+ * every OpenAI-compatible provider honours `strict`, and a bad value reaching
+ * Todoist fails the whole submission.
  */
 function toIssue(text: string): NormalizedIssue | null {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
   } catch {
-    console.error('Claude returned non-JSON');
+    console.error('LLM returned non-JSON');
     return null;
   }
 

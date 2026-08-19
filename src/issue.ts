@@ -4,10 +4,10 @@ import type { DiscordAttachment } from './interaction.ts';
 /**
  * The structured issue.
  *
- * Claude produces this once a key is configured; until then `fromRawInput`
- * produces the same shape from the user's text as-is. Everything downstream
- * (Todoist, the Discord embed) only ever sees this type, so switching the
- * source changes nothing else.
+ * The LLM produces this once a provider is configured; until then
+ * `fromRawInput` produces the same shape from the user's text as-is. Everything
+ * downstream (Todoist, the Discord embed) only ever sees this type, so
+ * switching the source changes nothing else.
  */
 export interface NormalizedIssue {
   title: string;
@@ -30,7 +30,7 @@ export interface IssueContext {
   filedBy: string | null;
   sourceLink: string | null;
   attachments: DiscordAttachment[];
-  /** False when Claude was unavailable and the text was passed through as-is. */
+  /** False when no LLM ran and the text was passed through as-is. */
   normalized: boolean;
 }
 
@@ -38,9 +38,9 @@ export interface IssueContext {
 const MAX_TITLE_LENGTH = 100;
 
 /**
- * Passthrough used when no Claude key is configured, and as the fallback when
- * the Claude call fails. Never invents anything: the title is the user's own
- * first line, and the body is their text verbatim.
+ * Passthrough used when no provider is configured, and as the fallback when
+ * the LLM call fails. Never invents anything: the title is the user's own first
+ * line, and the body is their text verbatim.
  */
 export function fromRawInput(rawInput: string): NormalizedIssue {
   return {
@@ -60,7 +60,7 @@ function firstLine(text: string): string {
 }
 
 /**
- * Shared with the Claude path: the model is told to keep titles short, but a
+ * Shared with the LLM path: the model is told to keep titles short, but a
  * title that slips through long would be truncated by Todoist anyway, and
  * mid-word by default.
  */

@@ -1,4 +1,4 @@
-import { normalizeIssue } from './claude.ts';
+import { configFromEnv, normalizeIssue } from './llm.ts';
 import { fromRawInput, type IssueContext, type NormalizedIssue } from './issue.ts';
 import { createTask, type CreatedTask } from './todoist.ts';
 import type { Env } from './env.ts';
@@ -13,18 +13,17 @@ export interface ProcessResult {
 /**
  * Turns a submission into a Todoist task.
  *
- * Normalization is best-effort: with no ANTHROPIC_API_KEY, or when the Claude
- * call fails, the text passes through verbatim and the task is labelled for
- * triage instead. Losing the report is never an acceptable outcome — a rough
- * task the reporter can still read beats no task at all.
+ * Normalization is best-effort: with no provider configured, or when the call
+ * fails, the text passes through verbatim and the task is labelled for triage
+ * instead. Losing the report is never an acceptable outcome — a rough task the
+ * reporter can still read beats no task at all.
  */
 export async function processSubmission(
   env: Env,
   context: Omit<IssueContext, 'normalized'>,
 ): Promise<ProcessResult> {
-  const normalized = env.ANTHROPIC_API_KEY
-    ? await normalizeIssue(env.ANTHROPIC_API_KEY, context.rawInput)
-    : null;
+  const config = configFromEnv(env);
+  const normalized = config ? await normalizeIssue(config, context.rawInput) : null;
 
   const issue = normalized ?? fromRawInput(context.rawInput);
   const fullContext: IssueContext = { ...context, normalized: normalized !== null };

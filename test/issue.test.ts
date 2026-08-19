@@ -28,7 +28,7 @@ test('a long title is cut at a word boundary, never mid-word', () => {
 
 test('raw mode does not invent Masalah/Harapan/Langkah headings', () => {
   // Presenting unprocessed text under headings would imply a rigour that is
-  // not there. Those headings only appear once Claude has structured it.
+  // not there. Those headings only appear once the LLM has structured it.
   const issue = fromRawInput(base.rawInput);
   const body = renderDescription(issue, { ...base, normalized: false });
 

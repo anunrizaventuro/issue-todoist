@@ -25,8 +25,16 @@ const context = {
   attachments: [],
 };
 
-/** Routes by host so neither Anthropic nor Todoist is actually contacted. */
-function stubFetch(claudeText: string | null) {
+/** A fully configured provider, pointed at a host the stub below intercepts. */
+const configured = {
+  ...env,
+  LLM_BASE_URL: 'https://llm.example.com/v1',
+  LLM_MODEL: 'test-model',
+  LLM_API_KEY: 'key',
+};
+
+/** Routes by host so neither the provider nor Todoist is actually contacted. */
+function stubFetch(completion: string | null) {
   const sent: any[] = [];
   const real = globalThis.fetch;
 
@@ -34,13 +42,12 @@ function stubFetch(claudeText: string | null) {
     const url = String(input?.url ?? input);
     sent.push({ url, body: init?.body ? JSON.parse(init.body) : null });
 
-    if (url.includes('anthropic.com')) {
-      if (claudeText === null) return new Response('{"error":{}}', { status: 500 });
+    if (url.includes('llm.example.com')) {
+      if (completion === null) return new Response('{"error":{}}', { status: 500 });
       return new Response(
         JSON.stringify({
-          id: 'm', type: 'message', role: 'assistant', model: 'claude-opus-5',
-          content: [{ type: 'text', text: claudeText }], stop_reason: 'end_turn',
-          stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 },
+          id: 'chatcmpl-1',
+          choices: [{ index: 0, message: { role: 'assistant', content: completion }, finish_reason: 'stop' }],
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
       );
@@ -56,10 +63,10 @@ function stubFetch(claudeText: string | null) {
 
 const todoistBody = (sent: any[]) => sent.find((r) => r.url.includes('todoist'))!.body;
 
-test('with a key set, the issue reaches Todoist normalized', async () => {
+test('with a provider configured, the issue reaches Todoist normalized', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission({ ...env, ANTHROPIC_API_KEY: 'key' }, context);
+    const result = await processSubmission(configured, context);
 
     assert.equal(result.error, null);
     assert.equal(result.issue.title, 'Checkout tertutup navbar di halaman produk');
@@ -74,25 +81,50 @@ test('with a key set, the issue reaches Todoist normalized', async () => {
   }
 });
 
-test('without a key, the raw text is filed for triage instead', async () => {
+test('the configured model is the one actually called', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission({ ...env, ANTHROPIC_API_KEY: '' }, context);
+    await processSubmission({ ...configured, LLM_MODEL: 'vendor/some-other-model' }, context);
+
+    const call = sent.find((r) => r.url.includes('llm.example.com'))!;
+    assert.equal(call.url, 'https://llm.example.com/v1/chat/completions');
+    assert.equal(call.body.model, 'vendor/some-other-model');
+  } finally {
+    restore();
+  }
+});
+
+test('without provider config, the raw text is filed for triage instead', async () => {
+  const { sent, restore } = stubFetch(NORMALIZED);
+  try {
+    const result = await processSubmission(env, context);
 
     assert.equal(result.issue.title, context.rawInput);
-    assert.ok(!sent.some((r) => r.url.includes('anthropic')), 'Claude must not be called');
+    assert.ok(!sent.some((r) => r.url.includes('llm.example.com')), 'no provider must be called');
     assert.ok(todoistBody(sent).labels.includes(TRIAGE_LABEL));
   } finally {
     restore();
   }
 });
 
-test('a failing Claude call still files the issue, labelled for triage', async () => {
+test('a half-filled config is treated as no config rather than a failed call', async () => {
+  const { sent, restore } = stubFetch(NORMALIZED);
+  try {
+    const result = await processSubmission({ ...configured, LLM_API_KEY: '' }, context);
+
+    assert.equal(result.issue.title, context.rawInput);
+    assert.ok(!sent.some((r) => r.url.includes('llm.example.com')), 'no provider must be called');
+  } finally {
+    restore();
+  }
+});
+
+test('a failing provider call still files the issue, labelled for triage', async () => {
   const { sent, restore } = stubFetch(null);
   try {
-    const result = await processSubmission({ ...env, ANTHROPIC_API_KEY: 'key' }, context);
+    const result = await processSubmission(configured, context);
 
-    assert.equal(result.error, null, 'a Claude outage must not fail the submission');
+    assert.equal(result.error, null, 'a provider outage must not fail the submission');
     assert.equal(result.issue.title, context.rawInput);
     assert.ok(todoistBody(sent).labels.includes(TRIAGE_LABEL));
   } finally {
