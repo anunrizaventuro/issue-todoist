@@ -19,6 +19,7 @@ import {
   authorOf,
   displayName,
   findValue,
+  isGuildAllowed,
   messageLink,
   sourceLinkOf,
   targetMessageOf,
@@ -73,6 +74,17 @@ export async function handleInteraction(
     interaction = JSON.parse(rawBody) as Interaction;
   } catch {
     return new Response('Malformed body', { status: 400 });
+  }
+
+  // Guarded here rather than per-command: the modal's custom_id is guessable,
+  // so a check that only covers the slash command covers nothing. PING is
+  // exempt because it carries no guild, and refusing it un-registers the
+  // endpoint in Discord.
+  if (
+    interaction.type !== InteractionType.PING &&
+    !isGuildAllowed(env.ALLOWED_GUILD_IDS, interaction.guild_id)
+  ) {
+    return json(ephemeral('Bot ini belum diaktifkan untuk server ini.'));
   }
 
   switch (interaction.type) {
