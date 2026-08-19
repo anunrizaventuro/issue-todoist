@@ -51,6 +51,50 @@ export async function createTask(
   return { id: task.id, url: taskUrl(task.id) };
 }
 
+/**
+ * Adds one child task per subtask.
+ *
+ * Sequential on purpose: Todoist orders children by creation, and the list the
+ * model produced is already in the order the work should happen.
+ *
+ * Never throws. The parent task is saved by the time this runs, so a failed
+ * child is a missing detail, not a lost report — the count comes back instead
+ * and the reporter is told.
+ */
+export async function createSubtasks(
+  token: string,
+  parentId: string,
+  titles: string[],
+): Promise<{ created: number; failed: number }> {
+  let created = 0;
+  let failed = 0;
+
+  for (const content of titles) {
+    try {
+      const res = await fetch(`${API}/tasks`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content, parent_id: parentId }),
+      });
+
+      if (res.ok) {
+        created++;
+      } else {
+        failed++;
+        console.error(`Todoist subtask ${res.status}: ${await res.text()}`);
+      }
+    } catch (cause) {
+      failed++;
+      console.error('Todoist subtask failed', cause);
+    }
+  }
+
+  return { created, failed };
+}
+
 export function taskUrl(id: string): string {
   return `https://app.todoist.com/app/task/${id}`;
 }

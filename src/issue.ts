@@ -18,6 +18,10 @@ export interface NormalizedIssue {
   priority: 1 | 2 | 3 | 4;
   /** English or an ISO date — Todoist cannot parse Indonesian dates. */
   dueString: string | null;
+  /** Page the issue is about: typed into the form, or found in the text. */
+  url: string | null;
+  /** One Todoist child task each. Empty for the great majority of reports. */
+  subtasks: string[];
   needsClarification: boolean;
   clarification: string | null;
 }
@@ -29,6 +33,8 @@ export interface IssueContext {
   /** Set only when someone filed another person's message. */
   filedBy: string | null;
   sourceLink: string | null;
+  /** URL typed into the form. Outranks whatever the model found in the text. */
+  pageUrl: string | null;
   attachments: DiscordAttachment[];
   /** False when no LLM ran and the text was passed through as-is. */
   normalized: boolean;
@@ -50,6 +56,8 @@ export function fromRawInput(rawInput: string): NormalizedIssue {
     action: null,
     priority: 1,
     dueString: null,
+    url: null,
+    subtasks: [],
     needsClarification: false,
     clarification: null,
   };
@@ -57,6 +65,25 @@ export function fromRawInput(rawInput: string): NormalizedIssue {
 
 function firstLine(text: string): string {
   return clipTitle(text.split('\n').map((l) => l.trim()).find(Boolean) ?? text.trim());
+}
+
+/**
+ * Keeps only what is actually a link.
+ *
+ * Guards both ends: a model that answers "halaman keranjang" is describing the
+ * page rather than citing it, and a reporter can type anything into the form.
+ * Either way a non-link rendered as a URL is a dead link in the ticket.
+ */
+export function toUrl(value: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+
+  try {
+    const parsed = new URL(text);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -91,6 +118,9 @@ export function renderDescription(issue: NormalizedIssue, context: IssueContext)
     // rigour that isn't there.
     blocks.push(issue.problem);
   }
+
+  // Early, because it is the first thing whoever picks this up will click.
+  if (issue.url) blocks.push(`**Halaman**\n${issue.url}`);
 
   if (issue.needsClarification && issue.clarification) {
     blocks.push(`**Perlu diperjelas**\n${issue.clarification}`);

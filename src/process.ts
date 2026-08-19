@@ -1,6 +1,6 @@
 import { configFromEnv, normalizeIssue } from './llm.ts';
-import { fromRawInput, type IssueContext, type NormalizedIssue } from './issue.ts';
-import { createTask, type CreatedTask } from './todoist.ts';
+import { fromRawInput, toUrl, type IssueContext, type NormalizedIssue } from './issue.ts';
+import { createSubtasks, createTask, type CreatedTask } from './todoist.ts';
 import type { Env } from './env.ts';
 
 export interface ProcessResult {
@@ -8,6 +8,9 @@ export interface ProcessResult {
   task: CreatedTask | null;
   /** Set when the task could not be saved, so the user still gets their text back. */
   error: string | null;
+  subtasksCreated: number;
+  /** Non-zero means the task exists but is missing some of its children. */
+  subtasksFailed: number;
 }
 
 /**
@@ -25,14 +28,27 @@ export async function processSubmission(
   const config = configFromEnv(env);
   const normalized = config ? await normalizeIssue(config, context.rawInput) : null;
 
-  const issue = normalized ?? fromRawInput(context.rawInput);
+  const base = normalized ?? fromRawInput(context.rawInput);
+  // What the reporter typed into the form beats what the model read out of the
+  // prose, and survives even when no model ran.
+  const issue: NormalizedIssue = { ...base, url: toUrl(context.pageUrl) ?? base.url };
   const fullContext: IssueContext = { ...context, normalized: normalized !== null };
 
   try {
     const task = await createTask(env.TODOIST_API_TOKEN, issue, fullContext);
-    return { issue, task, error: null };
+    const subtasks = issue.subtasks.length
+      ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, issue.subtasks)
+      : { created: 0, failed: 0 };
+
+    return {
+      issue,
+      task,
+      error: null,
+      subtasksCreated: subtasks.created,
+      subtasksFailed: subtasks.failed,
+    };
   } catch (cause) {
     console.error('Todoist create failed', cause);
-    return { issue, task: null, error: String(cause) };
+    return { issue, task: null, error: String(cause), subtasksCreated: 0, subtasksFailed: 0 };
   }
 }

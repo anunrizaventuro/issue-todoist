@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { after, before } from 'node:test';
 
 import { handleInteraction } from '../src/handler.ts';
-import { env, signed } from './helpers.ts';
+import { captureFetch, env, signed } from './helpers.ts';
+
+let outbound: ReturnType<typeof captureFetch>;
+before(() => { outbound = captureFetch(); });
+after(() => outbound.restore());
 
 const APPLICATION_COMMAND = 2;
 const MESSAGE_COMMAND = 3;

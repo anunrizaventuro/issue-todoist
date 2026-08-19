@@ -33,6 +33,13 @@ export function resultMessage(
   }
 
   const notes: string[] = [];
+  if (result.subtasksCreated > 0) {
+    notes.push(`☑️ ${result.subtasksCreated} sub-task`);
+  }
+  if (result.subtasksFailed > 0) {
+    // The task is already filed, so this is the only place the reporter finds out.
+    notes.push(`⚠️ ${result.subtasksFailed} sub-task gagal dibuat`);
+  }
   if (context.attachments.length > 0) {
     notes.push(`📎 ${context.attachments.length} gambar (link Discord kedaluwarsa ~24 jam)`);
   }

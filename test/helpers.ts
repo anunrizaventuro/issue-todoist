@@ -34,3 +34,33 @@ export function signed(payload: unknown): Request {
     'X-Signature-Timestamp': timestamp,
   });
 }
+
+export interface OutboundCall {
+  url: string;
+  body: any;
+}
+
+/**
+ * Intercepts every outbound request for the duration of a test file.
+ *
+ * The work scheduled through `waitUntil` runs for real in these tests, so
+ * without this the suite calls Todoist and Discord on every run — which is both
+ * network-dependent and noisy with 401s from the placeholder token.
+ */
+export function captureFetch(response: unknown = { id: '42' }) {
+  const sent: OutboundCall[] = [];
+  const real = globalThis.fetch;
+
+  globalThis.fetch = (async (input: any, init: any) => {
+    sent.push({
+      url: String(input?.url ?? input),
+      body: init?.body ? JSON.parse(init.body) : null,
+    });
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as any;
+
+  return { sent, restore: () => { globalThis.fetch = real; } };
+}

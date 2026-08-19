@@ -9,6 +9,7 @@ const base: Omit<IssueContext, 'normalized'> = {
   author: 'rifa',
   filedBy: null,
   sourceLink: 'https://discord.com/channels/1/2',
+  pageUrl: null,
   attachments: [],
 };
 
@@ -85,4 +86,32 @@ test('no filer credit is shown when the same person did both', () => {
   const issue = fromRawInput(base.rawInput);
   const body = renderDescription(issue, { ...base, normalized: false, filedBy: null });
   assert.ok(!body.includes('dicatat oleh'));
+});
+
+test('fromRawInput invents neither a URL nor subtasks', () => {
+  const issue = fromRawInput('checkout ketutup navbar di https://toko.example.com/keranjang');
+  assert.equal(issue.url, null, 'the raw path must not parse anything out of the text');
+  assert.deepEqual(issue.subtasks, []);
+});
+
+test('the page URL gets its own section', () => {
+  const issue = { ...fromRawInput(base.rawInput), url: 'https://toko.example.com/keranjang' };
+  const body = renderDescription(issue, { ...base, normalized: true });
+
+  assert.ok(body.includes('**Halaman**'));
+  assert.ok(body.includes('https://toko.example.com/keranjang'));
+});
+
+test('the page URL still shows on the raw path, where it came from the form', () => {
+  // The form field is filled by the reporter, so it is real even when no model
+  // ran and the text itself was passed through untouched.
+  const issue = { ...fromRawInput(base.rawInput), url: 'https://toko.example.com/keranjang' };
+  const body = renderDescription(issue, { ...base, normalized: false });
+
+  assert.ok(body.includes('**Halaman**'));
+});
+
+test('no Halaman heading is left behind when there is no URL', () => {
+  const body = renderDescription(fromRawInput(base.rawInput), { ...base, normalized: true });
+  assert.ok(!body.includes('**Halaman**'));
 });

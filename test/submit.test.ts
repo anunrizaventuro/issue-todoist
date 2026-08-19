@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { after, before, beforeEach } from 'node:test';
 
 import { handleInteraction } from '../src/handler.ts';
 import { findValue } from '../src/interaction.ts';
-import { env, signed } from './helpers.ts';
+import { captureFetch, env, signed } from './helpers.ts';
+
+let outbound: ReturnType<typeof captureFetch>;
+before(() => { outbound = captureFetch(); });
+beforeEach(() => { outbound.sent.length = 0; });
+after(() => outbound.restore());
 
 const MODAL_SUBMIT = 5;
 const RESPONSE_DEFERRED = 5;
@@ -65,4 +70,27 @@ test('findValue reaches inputs regardless of nesting depth', () => {
     'row',
   );
   assert.equal(findValue([{ type: 4, custom_id: 'y', value: 'no' }], 'x'), undefined);
+});
+
+const filedTask = () => outbound.sent.find((r) => r.url.includes('todoist'))!.body;
+
+test('the URL typed into the form reaches the filed task', async () => {
+  const payload = submission('tombol checkout ketutup navbar di mobile');
+  payload.data.components.push({
+    type: 18,
+    component: { type: 4, custom_id: 'page_url', value: 'https://toko.example.com/keranjang' },
+  });
+
+  const { deferred } = await call(payload);
+  await Promise.all(deferred);
+
+  assert.match(filedTask().description, /\*\*Halaman\*\*/);
+  assert.match(filedTask().description, /https:\/\/toko\.example\.com\/keranjang/);
+});
+
+test('leaving the URL field blank files the issue without a Halaman section', async () => {
+  const { deferred } = await call(submission('tombol checkout ketutup navbar di mobile'));
+  await Promise.all(deferred);
+
+  assert.ok(!filedTask().description.includes('**Halaman**'));
 });

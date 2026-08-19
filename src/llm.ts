@@ -1,4 +1,4 @@
-import { clipTitle, type NormalizedIssue } from './issue.ts';
+import { clipTitle, toUrl, type NormalizedIssue } from './issue.ts';
 import type { Env } from './env.ts';
 
 /**
@@ -27,6 +27,15 @@ export interface LlmConfig {
 const TIMEOUT_MS = 20_000;
 
 /**
+ * Ceiling on subtasks.
+ *
+ * Each one costs its own Todoist write, so an unbounded list is an unbounded
+ * number of calls made while the reporter waits. Eight is well past the point
+ * where a Discord report genuinely describes separate pieces of work.
+ */
+export const MAX_SUBTASKS = 8;
+
+/**
  * Mirrors NormalizedIssue. `additionalProperties: false` plus a full `required`
  * list is what `strict: true` demands, and what makes the structured output
  * reliable enough to trust downstream.
@@ -47,13 +56,34 @@ const SCHEMA = {
       type: ['string', 'null'],
       description: 'Tenggat dalam bahasa Inggris ("tomorrow", "next monday") atau ISO. null bila tidak disebut.',
     },
+    url: {
+      type: ['string', 'null'],
+      description: 'URL halaman yang bermasalah bila pelapor menyebutkannya. null bila tidak ada.',
+    },
+    subtasks: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        'Pekerjaan terpisah yang tersirat di laporan, satu kalimat per item. Array kosong bila laporannya satu pekerjaan saja.',
+    },
     needsClarification: { type: 'boolean' },
     clarification: {
       type: ['string', 'null'],
       description: 'Pertanyaan yang perlu dijawab pelapor, null bila tidak ada.',
     },
   },
-  required: ['title', 'problem', 'expected', 'action', 'priority', 'dueString', 'needsClarification', 'clarification'],
+  required: [
+    'title',
+    'problem',
+    'expected',
+    'action',
+    'priority',
+    'dueString',
+    'url',
+    'subtasks',
+    'needsClarification',
+    'clarification',
+  ],
   additionalProperties: false,
 } as const;
 
@@ -66,6 +96,8 @@ const SYSTEM = [
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
   '- Set needsClarification hanya bila laporannya benar-benar tidak bisa dikerjakan tanpa jawaban.',
+  `- subtasks hanya diisi bila laporannya memang memuat beberapa pekerjaan terpisah. Satu masalah = array kosong. Jangan memecah satu kalimat jadi beberapa item supaya terlihat rapi. Maksimal ${MAX_SUBTASKS} item.`,
+  '- url diisi hanya dengan alamat yang benar-benar ditulis pelapor (diawali http:// atau https://). Jangan menyusun URL sendiri dari nama halaman.',
   '',
   // Repeated here because `response_format` is honoured unevenly across
   // OpenAI-compatible providers; a provider that ignores it still gets the shape.
@@ -170,6 +202,8 @@ function toIssue(text: string): NormalizedIssue | null {
     action: str(value.action),
     priority,
     dueString: str(value.dueString),
+    url: toUrl(str(value.url)),
+    subtasks: subtasks(value.subtasks),
     needsClarification: value.needsClarification,
     clarification: str(value.clarification),
   };
@@ -178,4 +212,20 @@ function toIssue(text: string): NormalizedIssue | null {
 /** Treats empty strings as absent, so blank sections are omitted downstream. */
 function str(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * Anything that is not a usable list of titles becomes no subtasks at all.
+ *
+ * Most reports have none, so absence is the common case rather than an error —
+ * losing a malformed list costs far less than failing the whole normalization.
+ */
+function subtasks(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map(str)
+    .filter((title): title is string => title !== null)
+    .slice(0, MAX_SUBTASKS)
+    .map(clipTitle);
 }

@@ -12,6 +12,7 @@ const COMPONENT_LABEL = 18;
 const COMPONENT_TEXT_INPUT = 4;
 const COMPONENT_FILE_UPLOAD = 19;
 const STYLE_PARAGRAPH = 2;
+const STYLE_SHORT = 1;
 
 const call = (req: Request) => handleInteraction(req, env, noopWaitUntil);
 
@@ -33,11 +34,12 @@ test('/issue responds with a modal titled Input Issue', async () => {
   assert.equal(body.data.title, 'Input Issue');
 });
 
-test('both fields sit inside Labels, not Action Rows', async () => {
+test('every field sits inside a Label, not an Action Row', async () => {
   // Action Rows are deprecated for modal inputs; Discord expects a Label.
   const components = await modalComponents();
 
-  assert.equal(components.length, 2);
+  assert.equal(components.length, 3);
+  assert.ok(components.length <= 5, 'Discord caps a modal at 5 components');
   for (const component of components) {
     assert.equal(component.type, COMPONENT_LABEL);
   }
@@ -56,12 +58,23 @@ test('the text field is a required paragraph with a length floor', async () => {
 test('the image field is optional', async () => {
   // File Upload defaults to required:true inside modals, which would block
   // every text-only issue. This must stay explicitly false.
-  const [, files] = await modalComponents();
+  const [, , files] = await modalComponents();
   assert.equal(files.component.type, COMPONENT_FILE_UPLOAD);
   assert.equal(files.component.custom_id, 'attachments');
   assert.equal(files.component.required, false);
   assert.equal(files.component.min_values, 0);
   assert.equal(files.component.max_values, MAX_ATTACHMENTS);
+});
+
+test('the URL field is an optional single-line input', async () => {
+  // Most issues are not about one specific page, so requiring this would make
+  // the form heavier for the common case.
+  const [, url] = await modalComponents();
+  assert.equal(url.component.type, COMPONENT_TEXT_INPUT);
+  assert.equal(url.component.style, STYLE_SHORT);
+  assert.equal(url.component.custom_id, 'page_url');
+  assert.equal(url.component.required, false);
+  assert.equal(url.component.max_length, 500);
 });
 
 test('unknown command gets an ephemeral reply instead of a modal', async () => {

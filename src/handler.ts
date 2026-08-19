@@ -5,7 +5,14 @@ import {
   MESSAGE_COMMAND_TARGET,
   type CommandName,
 } from './commands.ts';
-import { buildIssueModal, deferEphemeral, ephemeral, MODAL_PREFIX, RAW_INPUT_ID } from './discord.ts';
+import {
+  buildIssueModal,
+  deferEphemeral,
+  ephemeral,
+  MODAL_PREFIX,
+  PAGE_URL_ID,
+  RAW_INPUT_ID,
+} from './discord.ts';
 import { editOriginalResponse } from './followup.ts';
 import {
   attachmentsOf,
@@ -107,8 +114,10 @@ function handleModalSubmit(interaction: Interaction, env: Env, waitUntil: WaitUn
     return json(ephemeral('Issue-nya terlalu pendek. Tolong tulis sedikit lebih detail.'));
   }
 
+  const pageUrl = findValue(interaction.data.components, PAGE_URL_ID)?.trim() || null;
+
   // ACK now, work later: everything past this point is outside the 3-second budget.
-  waitUntil(createAndReport(interaction, env, command, rawInput));
+  waitUntil(createAndReport(interaction, env, command, rawInput, { pageUrl }));
   return json(deferEphemeral());
 }
 
@@ -164,6 +173,8 @@ async function createAndReport(
     author: authorOf(interaction),
     filedBy: null,
     sourceLink: sourceLinkOf(interaction),
+    // Only the modal has a URL field; the context menu leaves it to the model.
+    pageUrl: null,
     attachments: attachmentsOf(interaction),
     ...overrides,
   };

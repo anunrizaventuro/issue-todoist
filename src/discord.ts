@@ -9,6 +9,9 @@ import { COMMANDS, type CommandName } from './commands.ts';
 /** custom_id of the textarea inside the issue modal. */
 export const RAW_INPUT_ID = 'raw_input';
 
+/** custom_id of the optional page-URL field. */
+export const PAGE_URL_ID = 'page_url';
+
 /** custom_id of the optional image field. */
 export const ATTACHMENTS_ID = 'attachments';
 
@@ -51,6 +54,19 @@ export function buildIssueModal(command: CommandName) {
             min_length: 10,
             max_length: 4000,
             placeholder: config.placeholder,
+          },
+        },
+        {
+          type: MessageComponentTypes.LABEL,
+          label: 'Halaman terkait (opsional)',
+          description: 'URL halaman tempat issue-nya muncul.',
+          component: {
+            type: MessageComponentTypes.INPUT_TEXT,
+            custom_id: PAGE_URL_ID,
+            style: TextStyleTypes.SHORT,
+            required: false,
+            max_length: 500,
+            placeholder: 'https://...',
           },
         },
         {
