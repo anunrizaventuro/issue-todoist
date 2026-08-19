@@ -19,6 +19,7 @@ const filed = (over: Partial<ProcessResult> = {}): ProcessResult => ({
   issue: { ...fromRawInput(context.rawInput), title: 'Checkout tertutup navbar' },
   task: { id: '42', url: 'https://app.todoist.com/app/task/42' },
   error: null,
+  normalized: true,
   subtasksCreated: 0,
   subtasksFailed: 0,
   ...over,
@@ -46,4 +47,26 @@ test('subtasks that failed to save are called out, not silently dropped', async 
 test('a failed submission still hands the reporter their own text back', async () => {
   const body = resultMessage(filed({ task: null, error: 'boom' }), context) as any;
   assert.ok(body.embeds[0].description.includes(context.rawInput));
+});
+
+test('a report the model never touched says so, instead of claiming it was tidied up', async () => {
+  // The reporter has no other signal: the raw-text path produces a task that
+  // looks filed and complete, and `needs-triage` only shows up in Todoist.
+  const body = resultMessage(filed({ normalized: false }), context) as any;
+
+  assert.doesNotMatch(body.embeds[0].title, /✅/);
+  assert.match(body.embeds[0].title, /belum dirapikan/i);
+});
+
+test('an un-normalized report is still filed, with its Todoist link intact', async () => {
+  // The distinction is a warning, not a failure — the task exists either way.
+  const body = resultMessage(filed({ normalized: false }), context) as any;
+
+  assert.equal(body.components[0].components[0].url, 'https://app.todoist.com/app/task/42');
+  assert.match(body.embeds[0].description, /Checkout tertutup navbar/);
+});
+
+test('a normalized report keeps the plain success reply', async () => {
+  const body = resultMessage(filed(), context) as any;
+  assert.match(body.embeds[0].title, /✅/);
 });

@@ -21,10 +21,12 @@ export interface LlmConfig {
 }
 
 /**
+ * Per attempt, so a fully unlucky submission waits `MAX_ATTEMPTS` times this.
+ *
  * The reporter is waiting on a deferred Discord reply, so fail fast and let the
  * raw-text fallback answer rather than hanging on a slow provider.
  */
-const TIMEOUT_MS = 20_000;
+export const TIMEOUT_MS = 60_000;
 
 /**
  * Ceiling on subtasks.
@@ -96,13 +98,21 @@ const SYSTEM = [
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
   '- Set needsClarification hanya bila laporannya benar-benar tidak bisa dikerjakan tanpa jawaban.',
-  `- subtasks hanya diisi bila laporannya memang memuat beberapa pekerjaan terpisah. Satu masalah = array kosong. Jangan memecah satu kalimat jadi beberapa item supaya terlihat rapi. Maksimal ${MAX_SUBTASKS} item.`,
+  `- subtasks: kalau pelapor menyebut lebih dari satu perubahan yang bisa dikerjakan terpisah, pecah jadi satu item per pekerjaan. Beberapa field baru, beberapa halaman, atau perbaikan fungsi plus perubahan tampilan itu pekerjaan terpisah — meski ditulis dalam satu kalimat panjang tanpa tanda baca. Tulis tiap item sebagai perintah singkat. Array kosong hanya bila laporannya benar-benar satu pekerjaan tunggal. Maksimal ${MAX_SUBTASKS} item.`,
+  '  Contoh: "tambahkan alamat provinsi sampai desa, kodepos otomatis jadi dropdown, lalu background gradasi"',
+  '  -> ["Tambahkan field alamat bertingkat provinsi sampai desa", "Isi kodepos otomatis dari alamat dalam bentuk dropdown", "Terapkan background gradasi pada UI"]',
   '- url diisi hanya dengan alamat yang benar-benar ditulis pelapor (diawali http:// atau https://). Jangan menyusun URL sendiri dari nama halaman.',
   '',
   // Repeated here because `response_format` is honoured unevenly across
   // OpenAI-compatible providers; a provider that ignores it still gets the shape.
   'Balas hanya dengan satu objek JSON sesuai skema ini, tanpa teks lain:',
   JSON.stringify(SCHEMA),
+  '',
+  // Observed against a gateway that ignores `response_format`: the model
+  // sometimes emits the schema above verbatim and *then* the answer, leaving two
+  // JSON objects in one reply that no parser can read. Ruling it out costs a
+  // line; the alternative is a good report silently filed as raw text.
+  'Jangan menyalin skema di atas ke dalam jawaban. Balas objek berisi datanya saja, tanpa kunci "type" atau "properties".',
 ].join('\n');
 
 /**
@@ -119,11 +129,42 @@ export function configFromEnv(env: Env): LlmConfig | null {
   return baseUrl && model && apiKey ? { baseUrl, model, apiKey } : null;
 }
 
+/**
+ * Number of attempts, not retries.
+ *
+ * A gateway that only approximates `response_format` drops a quote or truncates
+ * often enough that one bad generation would send a perfectly good report to
+ * the raw-text fallback. Two attempts, never more: the reporter is waiting on a
+ * deferred reply, and a provider that produced garbage twice is failing for a
+ * reason a third call will not fix.
+ */
+const MAX_ATTEMPTS = 2;
+
+/** A reply that arrived intact but could not be read as an issue. */
+const UNUSABLE = Symbol('unusable');
+
 export async function normalizeIssue(
   config: LlmConfig,
   rawInput: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = TIMEOUT_MS,
 ): Promise<NormalizedIssue | null> {
+  for (let attempt = 1; ; attempt++) {
+    const outcome = await attemptNormalize(config, rawInput, fetchImpl, timeoutMs);
+    // Only a malformed reply is worth asking again for. An HTTP error, a
+    // refusal or a timeout would come back the same and cost the reporter
+    // another full wait.
+    if (outcome !== UNUSABLE) return outcome;
+    if (attempt >= MAX_ATTEMPTS) return null;
+  }
+}
+
+async function attemptNormalize(
+  config: LlmConfig,
+  rawInput: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): Promise<NormalizedIssue | null | typeof UNUSABLE> {
   try {
     const response = await fetchImpl(`${config.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
       method: 'POST',
@@ -145,7 +186,7 @@ export async function normalizeIssue(
           json_schema: { name: 'issue', strict: true, schema: SCHEMA },
         },
       }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) {
@@ -159,7 +200,8 @@ export async function normalizeIssue(
       return null;
     }
 
-    return message?.content ? toIssue(message.content) : null;
+    if (!message?.content) return null;
+    return toIssue(message.content) ?? UNUSABLE;
   } catch (cause) {
     console.error('LLM normalize failed', cause);
     return null;
@@ -179,7 +221,7 @@ interface ChatCompletion {
 function toIssue(text: string): NormalizedIssue | null {
   let raw: unknown;
   try {
-    raw = JSON.parse(text);
+    raw = JSON.parse(unfence(text));
   } catch {
     console.error('LLM returned non-JSON');
     return null;
@@ -207,6 +249,19 @@ function toIssue(text: string): NormalizedIssue | null {
     needsClarification: value.needsClarification,
     clarification: str(value.clarification),
   };
+}
+
+/**
+ * Unwraps a ```json fence.
+ *
+ * A provider that honours `response_format` never adds one; a provider that
+ * only approximates it adds one routinely, and the JSON inside is otherwise
+ * perfectly good. Anything unfenced is returned untouched.
+ */
+function unfence(text: string): string {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i);
+  return fenced ? fenced[1]!.trim() : trimmed;
 }
 
 /** Treats empty strings as absent, so blank sections are omitted downstream. */

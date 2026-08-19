@@ -4,6 +4,7 @@ import type { IssueContext } from './issue.ts';
 import type { ProcessResult } from './process.ts';
 
 const GREEN = 0x22c55e;
+const AMBER = 0xf59e0b;
 const RED = 0xef4444;
 
 /**
@@ -44,12 +45,23 @@ export function resultMessage(
     notes.push(`📎 ${context.attachments.length} gambar (link Discord kedaluwarsa ~24 jam)`);
   }
 
+  // Filed either way, so this is a warning rather than a failure — but saying
+  // nothing is what makes a timed-out provider look like a provider that was
+  // never wired up at all. The reporter is the one who can judge whether the
+  // raw text needs a second pass, and only if they are told.
+  const tidied = result.normalized;
+
   return {
     embeds: [
       {
-        title: '✅ Issue tercatat',
-        description: truncate(result.issue.title, 3800),
-        color: GREEN,
+        title: tidied ? '✅ Issue tercatat' : '⚠️ Tercatat, tapi belum dirapikan AI',
+        description: truncate(
+          tidied
+            ? result.issue.title
+            : `${result.issue.title}\n\nTulisanmu masuk apa adanya dan diberi label \`needs-triage\`.`,
+          3800,
+        ),
+        color: tidied ? GREEN : AMBER,
         ...(notes.length > 0 ? { footer: { text: notes.join(' · ') } } : {}),
       },
     ],

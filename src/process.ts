@@ -8,6 +8,8 @@ export interface ProcessResult {
   task: CreatedTask | null;
   /** Set when the task could not be saved, so the user still gets their text back. */
   error: string | null;
+  /** False when the LLM never ran or failed, and the text was filed verbatim. */
+  normalized: boolean;
   subtasksCreated: number;
   /** Non-zero means the task exists but is missing some of its children. */
   subtasksFailed: number;
@@ -44,11 +46,19 @@ export async function processSubmission(
       issue,
       task,
       error: null,
+      normalized: fullContext.normalized,
       subtasksCreated: subtasks.created,
       subtasksFailed: subtasks.failed,
     };
   } catch (cause) {
     console.error('Todoist create failed', cause);
-    return { issue, task: null, error: String(cause), subtasksCreated: 0, subtasksFailed: 0 };
+    return {
+      issue,
+      task: null,
+      error: String(cause),
+      normalized: fullContext.normalized,
+      subtasksCreated: 0,
+      subtasksFailed: 0,
+    };
   }
 }
