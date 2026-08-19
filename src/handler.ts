@@ -1,8 +1,23 @@
 import { InteractionResponseType, InteractionType, verifyKey } from 'discord-interactions';
-import { isCommandName, type CommandName } from './commands.ts';
+import {
+  isCommandName,
+  MESSAGE_COMMAND_NAME,
+  MESSAGE_COMMAND_TARGET,
+  type CommandName,
+} from './commands.ts';
 import { buildIssueModal, deferEphemeral, ephemeral, MODAL_PREFIX, RAW_INPUT_ID } from './discord.ts';
 import { editOriginalResponse } from './followup.ts';
-import { attachmentsOf, authorOf, findValue, sourceLinkOf, type Interaction } from './interaction.ts';
+import {
+  attachmentsOf,
+  authorOf,
+  displayName,
+  findValue,
+  messageLink,
+  sourceLinkOf,
+  targetMessageOf,
+  type Interaction,
+} from './interaction.ts';
+import type { IssueContext } from './issue.ts';
 import { processSubmission } from './process.ts';
 import { resultMessage } from './result.ts';
 import type { Env } from './env.ts';
@@ -60,6 +75,9 @@ export async function handleInteraction(
       return json({ type: InteractionResponseType.PONG });
 
     case InteractionType.APPLICATION_COMMAND: {
+      if (interaction.data?.name === MESSAGE_COMMAND_NAME) {
+        return handleMessageCommand(interaction, env, waitUntil);
+      }
       const name = interaction.data?.name;
       if (!isCommandName(name)) {
         return json(ephemeral('Command tidak dikenal.'));
@@ -94,18 +112,60 @@ function handleModalSubmit(interaction: Interaction, env: Env, waitUntil: WaitUn
   return json(deferEphemeral());
 }
 
+/**
+ * Right-click -> Apps -> Buat Issue.
+ *
+ * The message itself is the issue, so there is no modal: its text and its
+ * attachments are already exactly what we need, and pasting a screenshot into
+ * the channel is the paste path the modal's upload box does not offer.
+ */
+function handleMessageCommand(
+  interaction: Interaction,
+  env: Env,
+  waitUntil: WaitUntil,
+): Response {
+  const message = targetMessageOf(interaction);
+  if (!message) {
+    return json(ephemeral('Pesannya tidak terbaca. Coba lagi.'));
+  }
+
+  const rawInput = message.content.trim();
+  if (rawInput.length < MIN_ISSUE_LENGTH) {
+    // An image with no words would produce a meaningless title.
+    return json(
+      ephemeral('Pesan ini tidak punya cukup teks. Tambahkan keterangan, atau pakai `/issue`.'),
+    );
+  }
+
+  const writer = displayName(message.author);
+  const clicker = authorOf(interaction);
+
+  waitUntil(
+    createAndReport(interaction, env, MESSAGE_COMMAND_TARGET, rawInput, {
+      author: writer,
+      filedBy: clicker === writer ? null : clicker,
+      sourceLink: messageLink(interaction, message.id),
+      attachments: message.attachments ?? [],
+    }),
+  );
+  return json(deferEphemeral());
+}
+
 async function createAndReport(
   interaction: Interaction,
   env: Env,
   command: CommandName,
   rawInput: string,
+  overrides?: Partial<Omit<IssueContext, 'normalized' | 'command' | 'rawInput'>>,
 ): Promise<void> {
   const context = {
     command,
     rawInput,
     author: authorOf(interaction),
+    filedBy: null,
     sourceLink: sourceLinkOf(interaction),
     attachments: attachmentsOf(interaction),
+    ...overrides,
   };
 
   const result = await processSubmission(env, context);

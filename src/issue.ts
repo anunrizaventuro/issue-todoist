@@ -26,6 +26,8 @@ export interface IssueContext {
   command: CommandName;
   rawInput: string;
   author: string;
+  /** Set only when someone filed another person's message. */
+  filedBy: string | null;
   sourceLink: string | null;
   attachments: DiscordAttachment[];
   /** False when Claude was unavailable and the text was passed through as-is. */
@@ -54,7 +56,15 @@ export function fromRawInput(rawInput: string): NormalizedIssue {
 }
 
 function firstLine(text: string): string {
-  const line = text.split('\n').map((l) => l.trim()).find(Boolean) ?? text.trim();
+  return clipTitle(text.split('\n').map((l) => l.trim()).find(Boolean) ?? text.trim());
+}
+
+/**
+ * Shared with the Claude path: the model is told to keep titles short, but a
+ * title that slips through long would be truncated by Todoist anyway, and
+ * mid-word by default.
+ */
+export function clipTitle(line: string): string {
   if (line.length <= MAX_TITLE_LENGTH) return line;
 
   // Prefer cutting at a word boundary over slicing mid-word.
@@ -93,9 +103,10 @@ export function renderDescription(issue: NormalizedIssue, context: IssueContext)
     blocks.push(`**Gambar**\n${links}\n\n⚠️ Link Discord kedaluwarsa ~24 jam.`);
   }
 
-  const source = context.sourceLink
+  const origin = context.sourceLink
     ? `dari @${context.author} di [Discord](${context.sourceLink})`
     : `dari @${context.author} di Discord`;
+  const source = context.filedBy ? `${origin} · dicatat oleh @${context.filedBy}` : origin;
   const footer = context.normalized
     ? `---\n📥 ${source}\n\n**Tulisan asli:**\n${quote(context.rawInput)}`
     : `---\n📥 ${source}`;

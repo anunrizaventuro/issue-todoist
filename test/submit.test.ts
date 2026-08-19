@@ -16,7 +16,7 @@ function submission(text: string, extra: Record<string, unknown> = {}) {
     application_id: '1',
     token: 'tok',
     data: {
-      custom_id: 'issue:development',
+      custom_id: 'issue:issue',
       components: [
         { type: 18, component: { type: 4, custom_id: 'raw_input', value: text } },
       ],

@@ -4,9 +4,10 @@ import test from 'node:test';
 import { fromRawInput, renderDescription, type IssueContext } from '../src/issue.ts';
 
 const base: Omit<IssueContext, 'normalized'> = {
-  command: 'development',
+  command: 'issue',
   rawInput: 'tombol checkout ga muncul di mobile',
   author: 'rifa',
+  filedBy: null,
   sourceLink: 'https://discord.com/channels/1/2',
   attachments: [],
 };
@@ -70,4 +71,18 @@ test('attachments are listed with their expiry warning', () => {
 
   assert.ok(body.includes('[shot.png](https://cdn.discordapp.com/x.png?ex=1)'));
   assert.ok(body.includes('kedaluwarsa'), 'expiring links must be labelled as such');
+});
+
+test('a filer different from the writer is credited separately', () => {
+  const issue = fromRawInput(base.rawInput);
+  const body = renderDescription(issue, { ...base, normalized: false, filedBy: 'anun' });
+
+  assert.ok(body.includes('@rifa'), 'the person who wrote it stays the reporter');
+  assert.ok(body.includes('dicatat oleh @anun'));
+});
+
+test('no filer credit is shown when the same person did both', () => {
+  const issue = fromRawInput(base.rawInput);
+  const body = renderDescription(issue, { ...base, normalized: false, filedBy: null });
+  assert.ok(!body.includes('dicatat oleh'));
 });

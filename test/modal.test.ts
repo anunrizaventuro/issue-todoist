@@ -16,20 +16,20 @@ const STYLE_PARAGRAPH = 2;
 const call = (req: Request) => handleInteraction(req, env, noopWaitUntil);
 
 async function modalComponents(): Promise<any[]> {
-  const res = await call(signed({ type: APPLICATION_COMMAND, data: { name: 'development' } }));
+  const res = await call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
   return ((await res.json()) as any).data.components;
 }
 
 const openModal = () =>
-  call(signed({ type: APPLICATION_COMMAND, data: { name: 'development' } }));
+  call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
 
-test('/development responds with a modal titled Input Issue', async () => {
+test('/issue responds with a modal titled Input Issue', async () => {
   const res = await openModal();
   assert.equal(res.status, 200);
 
   const body = (await res.json()) as any;
   assert.equal(body.type, RESPONSE_MODAL);
-  assert.equal(body.data.custom_id, 'issue:development');
+  assert.equal(body.data.custom_id, 'issue:issue');
   assert.equal(body.data.title, 'Input Issue');
 });
 
