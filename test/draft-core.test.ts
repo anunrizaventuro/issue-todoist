@@ -143,8 +143,8 @@ test('editing pushes the deadline back', async () => {
   const edited = await obj.edit({
     title: 'Kodepos kosong',
     url: null,
-    problem: 'kodepos tidak terisi',
     why: null,
+    acceptance: ['Kodepos terisi otomatis'],
   });
 
   assert.equal(edited!.issue.title, 'Kodepos kosong');
@@ -160,7 +160,7 @@ test('a finished draft refuses edits instead of quietly accepting them', async (
 
     assert.equal(await obj.priority(4), null);
     assert.equal(
-      await obj.edit({ title: 'x', url: null, problem: 'y', why: null }),
+      await obj.edit({ title: 'x', url: null, why: null, acceptance: [] }),
       null,
     );
   } finally {

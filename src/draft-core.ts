@@ -1,14 +1,10 @@
 import {
-  applyAiEdit,
   applyEdit,
   applyPriority,
-  applyRewrite,
   claim,
-  type AiFields,
   type Draft,
   type EditFields,
 } from './draft.ts';
-import type { NormalizedIssue } from './issue.ts';
 import { editOriginal } from './followup.ts';
 import { fileIssue, type ProcessResult } from './process.ts';
 import { resultMessage } from './result.ts';
@@ -65,14 +61,6 @@ export class DraftCore {
 
   async edit(fields: EditFields): Promise<Draft | null> {
     return this.mutate((draft) => applyEdit(draft, fields));
-  }
-
-  async editAi(fields: AiFields): Promise<Draft | null> {
-    return this.mutate((draft) => applyAiEdit(draft, fields));
-  }
-
-  async rewrite(issue: NormalizedIssue, rawInput: string): Promise<Draft | null> {
-    return this.mutate((draft) => applyRewrite(draft, issue, rawInput));
   }
 
   async priority(value: number): Promise<Draft | null> {

@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  applyAiEdit,
   applyEdit,
-  applyRewrite,
   applyPriority,
   claim,
   draftCustomId,
@@ -74,34 +72,40 @@ test('a cancelled draft cannot be filed afterwards', () => {
   assert.equal(claim(cancelled, 'filed'), null);
 });
 
-test('editing overwrites only the fields the modal carries', () => {
+test('editing overwrites the model output, priority aside', () => {
   const before = draft();
-  before.issue.subtasks = ['pecahkan alamat jadi bertingkat'];
-  before.issue.dueString = 'tomorrow';
+  before.issue.acceptance = ['tebakan pertama model'];
   before.issue.priority = 3;
 
   const after = applyEdit(before, {
     title: 'Kodepos tidak terisi otomatis',
     url: 'https://app.example.com/checkout',
-    problem: 'kodepos kosong terus',
     why: 'pelanggan batal checkout',
+    acceptance: ['Kodepos terisi otomatis dari alamat'],
   });
 
   assert.equal(after.issue.title, 'Kodepos tidak terisi otomatis');
   assert.equal(after.issue.url, 'https://app.example.com/checkout');
   assert.equal(after.issue.why, 'pelanggan batal checkout');
-  assert.deepEqual(after.issue.subtasks, ['pecahkan alamat jadi bertingkat'], 'sub-task tidak ikut hilang');
-  assert.equal(after.issue.dueString, 'tomorrow', 'tenggat tidak ada di modal, jadi tidak boleh hilang');
+  assert.deepEqual(after.issue.acceptance, ['Kodepos terisi otomatis dari alamat']);
   assert.equal(after.issue.priority, 3, 'prioritas diatur dropdown, bukan modal');
   assert.equal(after.status, 'pending');
+});
+
+test('emptying the acceptance box leaves the issue with none', () => {
+  const before = draft();
+  before.issue.acceptance = ['tebakan yang salah'];
+
+  const after = applyEdit(before, { title: 'judul', url: null, why: null, acceptance: [] });
+  assert.deepEqual(after.issue.acceptance, [], 'a deliberate clear must not be undone');
 });
 
 test('an edit that is not a link leaves the url empty rather than dead', () => {
   const after = applyEdit(draft(), {
     title: 'judul',
     url: 'halaman keranjang',
-    problem: 'masalah',
     why: null,
+    acceptance: [],
   });
   assert.equal(after.issue.url, null);
 });
@@ -110,8 +114,8 @@ test('an edited title too long for Todoist is clipped', () => {
   const after = applyEdit(draft(), {
     title: 'x'.repeat(150),
     url: null,
-    problem: 'masalah',
     why: null,
+    acceptance: [],
   });
   assert.ok(after.issue.title.length <= 100);
 });
@@ -126,37 +130,4 @@ test('only the reporter owns the draft', () => {
   assert.equal(isReporter(draft(), '123'), true);
   assert.equal(isReporter(draft(), '999'), false);
   assert.equal(isReporter(draft(), undefined), false);
-});
-
-test('rewriting replaces the model output wholesale but keeps your reason', () => {
-  const before = draft();
-  before.issue.subtasks = ['sisa dari percobaan pertama'];
-  before.issue.why = 'pelanggan batal checkout';
-
-  const after = applyRewrite(
-    before,
-    { ...fromRawInput('teks baru'), title: 'Judul baru', subtasks: ['pekerjaan baru'] },
-    'teks baru',
-  );
-
-  assert.deepEqual(after.issue.subtasks, ['pekerjaan baru'], 'leftovers from the first pass must go');
-  assert.equal(after.issue.why, 'pelanggan batal checkout', 'the model never writes this');
-  assert.equal(after.context.rawInput, 'teks baru');
-});
-
-test('correcting the AI half leaves your half untouched', () => {
-  const before = draft();
-  before.issue.why = 'pelanggan batal checkout';
-  before.issue.title = 'Judul saya';
-
-  const after = applyAiEdit(before, {
-    expected: 'kodepos terisi sendiri',
-    action: null,
-    dueString: 'next monday',
-  });
-
-  assert.equal(after.issue.expected, 'kodepos terisi sendiri');
-  assert.equal(after.issue.dueString, 'next monday');
-  assert.equal(after.issue.why, 'pelanggan batal checkout');
-  assert.equal(after.issue.title, 'Judul saya');
 });

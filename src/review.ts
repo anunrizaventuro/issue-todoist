@@ -26,19 +26,14 @@ export function reviewMessage(draft: Draft, minutes: number): Record<string, unk
   const fields: { name: string; value: string; inline?: boolean }[] = [];
 
   if (issue.url) fields.push({ name: 'Halaman', value: issue.url });
-  if (issue.problem) fields.push({ name: 'Deskripsi', value: truncate(issue.problem, 1000) });
   if (issue.why) fields.push({ name: 'Kenapa penting', value: truncate(issue.why, 1000) });
-  if (issue.expected) fields.push({ name: 'Harapan', value: truncate(issue.expected, 500) });
-  if (issue.action) fields.push({ name: 'Langkah', value: truncate(issue.action, 500) });
-  if (issue.dueString) fields.push({ name: 'Tenggat', value: issue.dueString, inline: true });
   if (context.attachments.length > 0) {
     fields.push({ name: 'Gambar', value: `${context.attachments.length} file`, inline: true });
   }
-  if (issue.subtasks.length > 0) {
-    fields.push({ name: 'Sub-task', value: issue.subtasks.map((s) => `• ${s}`).join('\n') });
-  }
-  if (issue.needsClarification && issue.clarification) {
-    fields.push({ name: '❓ Perlu diperjelas', value: truncate(issue.clarification, 500) });
+  // Drafts stored before this field existed deserialise without it.
+  const acceptance = issue.acceptance ?? [];
+  if (acceptance.length > 0) {
+    fields.push({ name: 'Acceptance', value: acceptance.map((a) => `• ${a}`).join('\n') });
   }
 
   return {
@@ -57,11 +52,8 @@ export function reviewMessage(draft: Draft, minutes: number): Record<string, unk
       {
         type: 1, // Action Row — still the correct container for buttons in messages.
         components: [
-          // Exactly five, which is Discord's limit for one Action Row.
           { type: 2, style: 3, label: 'Approve', custom_id: draftCustomId('ok', draft.id) },
           { type: 2, style: 2, label: 'Edit', custom_id: draftCustomId('edit', draft.id) },
-          { type: 2, style: 2, label: 'Detail AI', custom_id: draftCustomId('ai', draft.id) },
-          { type: 2, style: 2, label: 'Tulis ulang', custom_id: draftCustomId('rw', draft.id) },
           { type: 2, style: 4, label: 'Batal', custom_id: draftCustomId('x', draft.id) },
         ],
       },

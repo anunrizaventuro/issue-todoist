@@ -11,13 +11,8 @@ import type { DiscordAttachment } from './interaction.ts';
  */
 export interface NormalizedIssue {
   title: string;
-  problem: string;
-  expected: string | null;
-  action: string | null;
   /** Todoist scale: 1 = normal ... 4 = urgent. Inverted from p1-p4 in the UI. */
   priority: 1 | 2 | 3 | 4;
-  /** English or an ISO date — Todoist cannot parse Indonesian dates. */
-  dueString: string | null;
   /** Page the issue is about: typed into the form, or found in the text. */
   url: string | null;
   /**
@@ -27,10 +22,15 @@ export interface NormalizedIssue {
    * the problem can answer, so rewriting it would be inventing motivation.
    */
   why: string | null;
-  /** One Todoist child task each. Empty for the great majority of reports. */
-  subtasks: string[];
-  needsClarification: boolean;
-  clarification: string | null;
+  /**
+   * What has to be true before this is done, one item each.
+   *
+   * The model produces these by breaking the reporter's description apart, and
+   * Todoist writes them as child tasks so each can be ticked off on its own.
+   * Absent entirely on drafts stored before this field existed, so readers must
+   * tolerate `undefined` too.
+   */
+  acceptance: string[];
 }
 
 export interface IssueContext {
@@ -70,16 +70,13 @@ const MAX_TITLE_LENGTH = 100;
 export function fromRawInput(rawInput: string): NormalizedIssue {
   return {
     title: firstLine(rawInput),
-    problem: rawInput,
-    expected: null,
-    action: null,
     priority: 1,
-    dueString: null,
     url: null,
     why: null,
-    subtasks: [],
-    needsClarification: false,
-    clarification: null,
+    // Splitting a report into acceptance criteria is the model's whole job, so
+    // with no model there is nothing honest to put here. The reporter's text
+    // still reaches Todoist as the quote in the footer.
+    acceptance: [],
   };
 }
 
@@ -123,43 +120,24 @@ export function clipTitle(line: string): string {
 /**
  * Renders the Todoist description in Markdown.
  *
- * Empty sections are omitted entirely — a template full of "Expected: -" is
- * noise, and this is meant to stay lighter than a Jira ticket.
+ * Deliberately thin: the title says what is wrong, the child tasks say what
+ * "done" means, and this carries only what neither can hold. Empty sections are
+ * omitted entirely rather than rendered as "Harapan: -".
  */
 export function renderDescription(
   issue: NormalizedIssue,
   context: IssueContext,
-  /** Images that never reached Todoist. Defaults to all of them. */
+  /** Images that could not be uploaded, so they stay reachable as links. */
   unattached: DiscordAttachment[] = context.attachments,
 ): string {
   const blocks: string[] = [];
 
-  if (context.normalized) {
-    blocks.push(`**Masalah**\n${issue.problem}`);
-    if (issue.expected) blocks.push(`**Harapan**\n${issue.expected}`);
-    if (issue.action) blocks.push(`**Langkah**\n${issue.action}`);
-  } else {
-    // Nothing was restructured, so presenting it under headings would imply a
-    // rigour that isn't there.
-    blocks.push(issue.problem);
-  }
-
-  // Verbatim: this is the reporter's own reason, not something to restructure.
-  if (issue.why) blocks.push(`**Kenapa penting**\n${issue.why}`);
-
   // Early, because it is the first thing whoever picks this up will click.
   if (issue.url) blocks.push(`**Halaman**\n${issue.url}`);
+  if (issue.why) blocks.push(`**Kenapa penting**\n${issue.why}`);
 
-  if (issue.needsClarification && issue.clarification) {
-    blocks.push(`**Perlu diperjelas**\n${issue.clarification}`);
-  }
-
-  // Anything Todoist holds is already shown on the task as a real attachment;
-  // repeating it here would only add a URL that dies within a day.
   if (unattached.length > 0) {
-    const links = unattached
-      .map((a) => `- [${a.filename}](${a.url})`)
-      .join('\n');
+    const links = unattached.map((a) => `- [${a.filename}](${a.url})`).join('\n');
     blocks.push(`**Gambar**\n${links}\n\n⚠️ Link Discord kedaluwarsa ~24 jam.`);
   }
 
@@ -167,11 +145,16 @@ export function renderDescription(
     ? `dari @${context.author} di [Discord](${context.sourceLink})`
     : `dari @${context.author} di Discord`;
   const source = context.filedBy ? `${origin} · dicatat oleh @${context.filedBy}` : origin;
-  const footer = context.normalized
-    ? `---\n📥 ${source}\n\n**Tulisan asli:**\n${quote(context.rawInput)}`
+
+  // Kept whether or not the model ran. Once the description is no longer
+  // rendered as prose, this is the only record of what was actually reported,
+  // and the acceptance list above it is a machine's reading of it.
+  const written = context.rawInput.trim();
+  const footer = written
+    ? `---\n📥 ${source}\n\n**Tulisan asli:**\n${quote(written)}`
     : `---\n📥 ${source}`;
 
-  return `${blocks.join('\n\n')}\n\n${footer}`;
+  return blocks.length > 0 ? `${blocks.join('\n\n')}\n\n${footer}` : footer;
 }
 
 function quote(text: string): string {

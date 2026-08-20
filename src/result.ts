@@ -35,11 +35,11 @@ export function resultMessage(
 
   const notes: string[] = [];
   if (result.subtasksCreated > 0) {
-    notes.push(`☑️ ${result.subtasksCreated} sub-task`);
+    notes.push(`☑️ ${result.subtasksCreated} acceptance`);
   }
   if (result.subtasksFailed > 0) {
     // The task is already filed, so this is the only place the reporter finds out.
-    notes.push(`⚠️ ${result.subtasksFailed} sub-task gagal dibuat`);
+    notes.push(`⚠️ ${result.subtasksFailed} acceptance gagal dibuat`);
   }
   if (result.attachmentsUploaded > 0) {
     notes.push(`🖼️ ${result.attachmentsUploaded} gambar terlampir`);

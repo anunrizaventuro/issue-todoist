@@ -19,17 +19,11 @@ export const PAGE_URL_ID = 'page_url';
 /** custom_id of the optional image field. */
 export const ATTACHMENTS_ID = 'attachments';
 
-/** custom_id of the expected-behaviour field in the edit modal. */
-export const EXPECTED_ID = 'expected';
-
-/** custom_id of the steps field in the AI modal. */
-export const ACTION_ID = 'action';
-
 /** custom_id of the "why this matters" field. */
 export const WHY_ID = 'why';
 
-/** custom_id of the due-date field in the AI modal. */
-export const DUE_ID = 'due';
+/** custom_id of the acceptance textarea in the edit modal. */
+export const ACCEPTANCE_ID = 'acceptance';
 
 /** Prefix that carries the command name across the modal round-trip. */
 export const MODAL_PREFIX = 'issue:';
@@ -174,11 +168,11 @@ function textField(
 }
 
 /**
- * The reporter's own words, for fixing their own wording.
+ * The whole draft, in one modal.
  *
- * Split from the AI modal because Discord caps a modal at five components and
- * six fields need correcting — but the split earns its keep anyway: these are
- * sentences you wrote, those are a machine's guesses that deserve a second look.
+ * Four fields fit inside Discord's five-component cap, which is what let the
+ * old `Edit` / `Detail AI` pair collapse into this. Editing here writes over
+ * the model's output directly rather than asking it for another pass.
  */
 export function buildEditModal(draft: Draft) {
   const { issue } = draft;
@@ -193,59 +187,32 @@ export function buildEditModal(draft: Draft) {
           max_length: 100,
         }),
         textField(PAGE_URL_ID, 'Halaman', issue.url, TextStyleTypes.SHORT, { max_length: 500 }),
-        textField(RAW_INPUT_ID, 'Deskripsi', issue.problem, TextStyleTypes.PARAGRAPH, {
-          max_length: 4000,
-        }),
         textField(WHY_ID, 'Kenapa ini penting', issue.why, TextStyleTypes.PARAGRAPH, {
           max_length: 1000,
         }),
+        textField(
+          ACCEPTANCE_ID,
+          'Acceptance (satu per baris)',
+          // Drafts stored before this field existed deserialise without it.
+          (issue.acceptance ?? []).join('\n'),
+          TextStyleTypes.PARAGRAPH,
+          { max_length: 2000 },
+        ),
       ],
     },
   };
 }
 
 /**
- * What the model produced, so a wrong guess can be corrected in place.
+ * Splits the acceptance textarea back into items.
  *
- * The due date lives here rather than on the card: it is a phrase Todoist parses
- * ("tomorrow", "next monday"), not something a dropdown could offer.
+ * Blank lines are how people space out a list they are editing, so they are
+ * dropped rather than becoming empty child tasks. A leading bullet is what the
+ * card showed them, so it is stripped rather than filed as part of the text.
  */
-export function buildAiModal(draft: Draft) {
-  const { issue } = draft;
-  return {
-    type: InteractionResponseType.MODAL,
-    data: {
-      custom_id: draftCustomId('ai', draft.id, true),
-      title: 'Perbaiki hasil AI',
-      components: [
-        textField(EXPECTED_ID, 'Harapan', issue.expected, TextStyleTypes.PARAGRAPH, {
-          max_length: 1000,
-        }),
-        textField(ACTION_ID, 'Langkah', issue.action, TextStyleTypes.PARAGRAPH, {
-          max_length: 1000,
-        }),
-        textField(DUE_ID, 'Tenggat', issue.dueString, TextStyleTypes.SHORT, {
-          max_length: 100,
-        }),
-      ],
-    },
-  };
-}
-
-/** Hands back what the reporter originally wrote, for the model to try again. */
-export function buildRewriteModal(draft: Draft) {
-  return {
-    type: InteractionResponseType.MODAL,
-    data: {
-      custom_id: draftCustomId('rw', draft.id, true),
-      title: 'Tulis ulang',
-      components: [
-        textField(RAW_INPUT_ID, 'Tulisan aslimu', draft.context.rawInput, TextStyleTypes.PARAGRAPH, {
-          required: true,
-          min_length: 10,
-          max_length: 4000,
-        }),
-      ],
-    },
-  };
+export function parseAcceptance(text: string | undefined): string[] {
+  return (text ?? '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*[-•*]\s*/, '').trim())
+    .filter(Boolean);
 }

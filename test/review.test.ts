@@ -38,14 +38,7 @@ const flat = (message: any) => message.components.flatMap((row: any) => row.comp
 
 test('the card carries every action the reporter can take', () => {
   const ids = flat(reviewMessage(draft(), 10)).map((c: any) => c.custom_id);
-  assert.deepEqual(ids, [
-    `d:ok:${ID}`,
-    `d:edit:${ID}`,
-    `d:ai:${ID}`,
-    `d:rw:${ID}`,
-    `d:x:${ID}`,
-    `d:pr:${ID}`,
-  ]);
+  assert.deepEqual(ids, [`d:ok:${ID}`, `d:edit:${ID}`, `d:x:${ID}`, `d:pr:${ID}`]);
   const buttons = (reviewMessage(draft(), 10) as any).components[0].components;
   assert.ok(buttons.length <= 5, 'Discord caps an Action Row at 5 buttons');
 });
@@ -72,13 +65,9 @@ test('everything that would be filed is shown, so nothing is approved unseen', (
       issue: {
         ...fromRawInput('kodepos kosong'),
         title: 'Kodepos kosong',
-        expected: 'terisi dari kelurahan',
-        action: 'pilih kelurahan di checkout',
-        dueString: 'tomorrow',
+        why: 'pelanggan batal checkout',
         url: 'https://app.example.com/checkout',
-        subtasks: ['pecah alamat jadi bertingkat', 'isi kodepos otomatis'],
-        needsClarification: true,
-        clarification: 'kelurahan mana yang dicoba?',
+        acceptance: ['Alamat bertingkat tersedia', 'Kodepos terisi otomatis'],
       },
     }),
     10,
@@ -86,12 +75,10 @@ test('everything that would be filed is shown, so nothing is approved unseen', (
   const text = JSON.stringify(card.embeds[0]);
 
   for (const shown of [
-    'terisi dari kelurahan',
-    'pilih kelurahan di checkout',
-    'tomorrow',
+    'pelanggan batal checkout',
     'app.example.com/checkout',
-    'pecah alamat jadi bertingkat',
-    'kelurahan mana yang dicoba?',
+    'Alamat bertingkat tersedia',
+    'Kodepos terisi otomatis',
   ]) {
     assert.ok(text.includes(shown), `missing from the card: ${shown}`);
   }

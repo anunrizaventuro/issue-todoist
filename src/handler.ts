@@ -11,17 +11,14 @@ import {
   type CommandName,
 } from './commands.ts';
 import {
-  ACTION_ID,
-  buildAiModal,
   buildEditModal,
   buildIssueModal,
-  buildRewriteModal,
   deferEphemeral,
   ephemeral,
-  EXPECTED_ID,
   MODAL_PREFIX,
   PAGE_URL_ID,
-  DUE_ID,
+  parseAcceptance,
+  ACCEPTANCE_ID,
   RAW_INPUT_ID,
   TITLE_ID,
   WHY_ID,
@@ -159,7 +156,7 @@ async function handleModalSubmit(
   // The modals a draft card opens carry their own prefix and are answered
   // by updating that card, not by starting a new submission.
   const ref = parseDraftCustomId(interaction.data?.custom_id);
-  if (ref?.modal) return handleDraftModal(interaction, env, ref, waitUntil);
+  if (ref?.modal) return handleDraftModal(interaction, env, ref);
 
   const command = interaction.data?.custom_id?.slice(MODAL_PREFIX.length);
   if (!interaction.data?.custom_id?.startsWith(MODAL_PREFIX) || !isCommandName(command)) {
@@ -311,12 +308,6 @@ async function handleDraftComponent(
     case 'edit':
       return json(buildEditModal(draft));
 
-    case 'ai':
-      return json(buildAiModal(draft));
-
-    case 'rw':
-      return json(buildRewriteModal(draft));
-
     case 'pr': {
       const next = await stub.priority(Number(interaction.data?.values?.[0]));
       return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
@@ -350,12 +341,11 @@ async function approveDraft(interaction: Interaction, stub: DraftStub): Promise<
   await editOriginalResponse(interaction, resultMessage(result, draft.context));
 }
 
-/** The two modals a draft card can open. */
+/** The one modal a draft card can open. */
 async function handleDraftModal(
   interaction: Interaction,
   env: Env,
   ref: { action: DraftAction; id: string },
-  waitUntil: WaitUntil,
 ): Promise<Response> {
   const stub = openDraft(env, ref.id);
   const draft = await stub.read();
@@ -365,53 +355,16 @@ async function handleDraftModal(
 
   const components = interaction.data?.components;
 
-  // Neither edit modal calls the provider, so both are fast enough to answer
-  // inline rather than deferring.
-  if (ref.action === 'edit') {
-    const next = await stub.edit({
-      title: findValue(components, TITLE_ID)?.trim() || draft.issue.title,
-      url: findValue(components, PAGE_URL_ID)?.trim() || null,
-      problem: findValue(components, RAW_INPUT_ID)?.trim() ?? '',
-      why: findValue(components, WHY_ID)?.trim() || null,
-    });
-    return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
-  }
+  // Nothing here calls the provider, so it is fast enough to answer inline
+  // rather than deferring.
+  const next = await stub.edit({
+    title: findValue(components, TITLE_ID)?.trim() || draft.issue.title,
+    url: findValue(components, PAGE_URL_ID)?.trim() || null,
+    why: findValue(components, WHY_ID)?.trim() || null,
+    acceptance: parseAcceptance(findValue(components, ACCEPTANCE_ID)),
+  });
 
-  if (ref.action === 'ai') {
-    const next = await stub.editAi({
-      expected: findValue(components, EXPECTED_ID)?.trim() || null,
-      action: findValue(components, ACTION_ID)?.trim() || null,
-      dueString: findValue(components, DUE_ID)?.trim() || null,
-    });
-    return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
-  }
-
-  const rawInput = findValue(components, RAW_INPUT_ID)?.trim() ?? '';
-  if (rawInput.length < MIN_ISSUE_LENGTH) {
-    return json(ephemeral('Issue-nya terlalu pendek. Tolong tulis sedikit lebih detail.'));
-  }
-
-  waitUntil(rewriteDraft(interaction, env, stub, draft, rawInput));
-  return json({ type: InteractionResponseType.DEFERRED_UPDATE_MESSAGE });
-}
-
-/** A second pass through the model, which costs the same wait as the first. */
-async function rewriteDraft(
-  interaction: Interaction,
-  env: Env,
-  stub: DraftStub,
-  draft: Draft,
-  rawInput: string,
-): Promise<void> {
-  const { issue } = await normalizeSubmission(env, { ...draft.context, rawInput });
-  // Replaces the whole issue, subtasks and priority included: a second pass that
-  // kept the first pass's leftovers would be neither one thing nor the other.
-  const next = await stub.rewrite(issue, rawInput);
-
-  await editOriginalResponse(
-    interaction,
-    next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft),
-  );
+  return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
 }
 
 /** Replaces the card the button was attached to. */

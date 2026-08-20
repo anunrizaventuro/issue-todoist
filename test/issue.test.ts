@@ -20,7 +20,6 @@ const base: Omit<IssueContext, 'normalized'> = {
 test('title falls back to the first non-empty line', () => {
   const issue = fromRawInput('\n\n  checkout mobile error  \nkayaknya ketutup\ncoba cek');
   assert.equal(issue.title, 'checkout mobile error');
-  assert.equal(issue.problem, '\n\n  checkout mobile error  \nkayaknya ketutup\ncoba cek');
 });
 
 test('a long title is cut at a word boundary, never mid-word', () => {
@@ -31,31 +30,41 @@ test('a long title is cut at a word boundary, never mid-word', () => {
   assert.ok(!/\bpanjan…$/.test(title), 'must not slice mid-word');
 });
 
-test('raw mode does not invent Masalah/Harapan/Langkah headings', () => {
-  // Presenting unprocessed text under headings would imply a rigour that is
-  // not there. Those headings only appear once the LLM has structured it.
+test('a report with nothing but text still renders its origin and quote', () => {
   const issue = fromRawInput(base.rawInput);
   const body = renderDescription(issue, { ...base, normalized: false });
 
-  assert.ok(!body.includes('**Masalah**'));
-  assert.ok(!body.includes('**Harapan**'));
   assert.ok(body.includes(base.rawInput), 'the user text must survive verbatim');
   assert.ok(body.includes('@rifa'));
 });
 
-test('normalized mode uses headings and keeps the original text quoted', () => {
+test('the description carries only what the title and child tasks cannot', () => {
   const issue = {
     ...fromRawInput(base.rawInput),
-    problem: 'Tombol checkout tidak terlihat di mobile.',
-    expected: 'Tombol tetap terlihat.',
-    action: null,
+    url: 'https://toko.example.com/keranjang',
+    why: 'pelanggan batal checkout',
+    acceptance: ['Tombol checkout terlihat di mobile'],
   };
   const body = renderDescription(issue, { ...base, normalized: true });
 
-  assert.ok(body.includes('**Masalah**'));
-  assert.ok(body.includes('**Harapan**'));
-  assert.ok(!body.includes('**Langkah**'), 'null sections must be omitted, not left empty');
+  assert.ok(body.includes('**Halaman**'));
+  assert.ok(body.includes('**Kenapa penting**'));
+  assert.ok(
+    !body.includes('Tombol checkout terlihat di mobile'),
+    'acceptance belongs to the child tasks, not repeated here',
+  );
   assert.ok(body.includes('> tombol checkout ga muncul di mobile'), 'original must be preserved');
+});
+
+test('the original text is quoted even when the model ran', () => {
+  // With `problem` gone this quote is the only narrative record of what was
+  // actually reported, so it must not depend on normalization succeeding.
+  const issue = { ...fromRawInput(base.rawInput), acceptance: ['apa pun'] };
+
+  for (const normalized of [true, false]) {
+    const body = renderDescription(issue, { ...base, normalized });
+    assert.ok(body.includes('**Tulisan asli:**'), `hilang saat normalized=${normalized}`);
+  }
 });
 
 test('attachments are listed with their expiry warning', () => {
@@ -92,10 +101,10 @@ test('no filer credit is shown when the same person did both', () => {
   assert.ok(!body.includes('dicatat oleh'));
 });
 
-test('fromRawInput invents neither a URL nor subtasks', () => {
+test('fromRawInput invents neither a URL nor acceptance criteria', () => {
   const issue = fromRawInput('checkout ketutup navbar di https://toko.example.com/keranjang');
   assert.equal(issue.url, null, 'the raw path must not parse anything out of the text');
-  assert.deepEqual(issue.subtasks, []);
+  assert.deepEqual(issue.acceptance, [], 'splitting a report apart is the model\'s job alone');
 });
 
 test('the page URL gets its own section', () => {

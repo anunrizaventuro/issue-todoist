@@ -29,13 +29,13 @@ export interface LlmConfig {
 export const TIMEOUT_MS = 60_000;
 
 /**
- * Ceiling on subtasks.
+ * Ceiling on acceptance criteria.
  *
  * Each one costs its own Todoist write, so an unbounded list is an unbounded
  * number of calls made while the reporter waits. Eight is well past the point
  * where a Discord report genuinely describes separate pieces of work.
  */
-export const MAX_SUBTASKS = 8;
+export const MAX_ACCEPTANCE = 8;
 
 /**
  * Mirrors NormalizedIssue. `additionalProperties: false` plus a full `required`
@@ -46,61 +46,40 @@ const SCHEMA = {
   type: 'object',
   properties: {
     title: { type: 'string', description: 'Ringkasan satu baris, maksimal 100 karakter.' },
-    problem: { type: 'string', description: 'Masalahnya, ditulis ulang dengan jelas.' },
-    expected: { type: ['string', 'null'], description: 'Perilaku yang diharapkan, null bila tidak tersirat.' },
-    action: { type: ['string', 'null'], description: 'Langkah reproduksi, null bila tidak disebut.' },
     priority: {
       type: 'integer',
       enum: [1, 2, 3, 4],
       description: 'Skala Todoist: 1 = biasa, 4 = mendesak. Pakai 1 kalau ragu.',
     },
-    dueString: {
-      type: ['string', 'null'],
-      description: 'Tenggat dalam bahasa Inggris ("tomorrow", "next monday") atau ISO. null bila tidak disebut.',
-    },
     url: {
       type: ['string', 'null'],
       description: 'URL halaman yang bermasalah bila pelapor menyebutkannya. null bila tidak ada.',
     },
-    subtasks: {
+    acceptance: {
       type: 'array',
       items: { type: 'string' },
       description:
-        'Pekerjaan terpisah yang tersirat di laporan, satu kalimat per item. Array kosong bila laporannya satu pekerjaan saja.',
-    },
-    needsClarification: { type: 'boolean' },
-    clarification: {
-      type: ['string', 'null'],
-      description: 'Pertanyaan yang perlu dijawab pelapor, null bila tidak ada.',
+        'Kriteria selesai, satu kalimat per item, hasil pemecahan deskripsi pelapor.',
     },
   },
-  required: [
-    'title',
-    'problem',
-    'expected',
-    'action',
-    'priority',
-    'dueString',
-    'url',
-    'subtasks',
-    'needsClarification',
-    'clarification',
-  ],
+  required: ['title', 'priority', 'url', 'acceptance'],
   additionalProperties: false,
 } as const;
 
 const SYSTEM = [
-  'Kamu merapikan laporan issue berbahasa Indonesia dari Discord menjadi tiket yang bisa dikerjakan.',
+  'Kamu mengubah laporan issue berbahasa Indonesia dari Discord menjadi tiket yang bisa dikerjakan.',
+  '',
+  'Tugas utamamu adalah memecah deskripsi pelapor menjadi kriteria acceptance:',
+  'kalimat-kalimat yang bisa dicentang satu per satu ketika issue-nya sudah selesai.',
   '',
   'Aturan:',
-  '- Jangan mengarang. Kalau sesuatu tidak disebut pelapor, isi null — jangan ditebak.',
-  '- Pertahankan bahasa Indonesia untuk semua teks, kecuali dueString.',
+  '- Jangan mengarang. Semua acceptance harus berakar pada yang benar-benar ditulis pelapor.',
+  '- Pertahankan bahasa Indonesia.',
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
-  '- Set needsClarification hanya bila laporannya benar-benar tidak bisa dikerjakan tanpa jawaban.',
-  `- subtasks: kalau pelapor menyebut lebih dari satu perubahan yang bisa dikerjakan terpisah, pecah jadi satu item per pekerjaan. Beberapa field baru, beberapa halaman, atau perbaikan fungsi plus perubahan tampilan itu pekerjaan terpisah — meski ditulis dalam satu kalimat panjang tanpa tanda baca. Tulis tiap item sebagai perintah singkat. Array kosong hanya bila laporannya benar-benar satu pekerjaan tunggal. Maksimal ${MAX_SUBTASKS} item.`,
-  '  Contoh: "tambahkan alamat provinsi sampai desa, kodepos otomatis jadi dropdown, lalu background gradasi"',
-  '  -> ["Tambahkan field alamat bertingkat provinsi sampai desa", "Isi kodepos otomatis dari alamat dalam bentuk dropdown", "Terapkan background gradasi pada UI"]',
+  `- acceptance: tulis tiap item sebagai keadaan akhir yang bisa diperiksa, bukan perintah kerja. Satu laporan panjang tanpa tanda baca sering memuat beberapa perubahan terpisah — pecah semuanya. Maksimal ${MAX_ACCEPTANCE} item. Array kosong hanya bila pelapor tidak menuliskan apa pun yang bisa diperiksa.`,
+  '  Contoh: "modal create order ga muncul, perlu notif kalo error, field email wajib, sama tombol cancel"',
+  '  -> ["Modal create order muncul dengan normal", "Error saat modal gagal muncul ditampilkan lewat notifikasi", "Field email wajib diisi pada modal create order", "Tombol cancel tersedia dan menutup modal"]',
   '- url diisi hanya dengan alamat yang benar-benar ditulis pelapor (diawali http:// atau https://). Jangan menyusun URL sendiri dari nama halaman.',
   '',
   // Repeated here because `response_format` is honoured unevenly across
@@ -231,25 +210,17 @@ function toIssue(text: string): NormalizedIssue | null {
   const value = raw as Record<string, unknown>;
 
   const title = str(value.title);
-  const problem = str(value.problem);
   const priority = value.priority;
-  if (!title || !problem) return null;
+  if (!title) return null;
   if (priority !== 1 && priority !== 2 && priority !== 3 && priority !== 4) return null;
-  if (typeof value.needsClarification !== 'boolean') return null;
 
   return {
     title: clipTitle(title),
-    problem,
-    expected: str(value.expected),
-    action: str(value.action),
     priority,
-    dueString: str(value.dueString),
     url: toUrl(str(value.url)),
     // Supplied by the reporter, never by the model.
     why: null,
-    subtasks: subtasks(value.subtasks),
-    needsClarification: value.needsClarification,
-    clarification: str(value.clarification),
+    acceptance: acceptance(value.acceptance),
   };
 }
 
@@ -272,17 +243,17 @@ function str(value: unknown): string | null {
 }
 
 /**
- * Anything that is not a usable list of titles becomes no subtasks at all.
+ * Anything that is not a usable list becomes no acceptance criteria at all.
  *
- * Most reports have none, so absence is the common case rather than an error —
- * losing a malformed list costs far less than failing the whole normalization.
+ * A malformed list costs far less than failing the whole normalization: the
+ * task still lands, carrying the reporter's own words in its description.
  */
-function subtasks(value: unknown): string[] {
+function acceptance(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
   return value
     .map(str)
-    .filter((title): title is string => title !== null)
-    .slice(0, MAX_SUBTASKS)
+    .filter((item): item is string => item !== null)
+    .slice(0, MAX_ACCEPTANCE)
     .map(clipTitle);
 }

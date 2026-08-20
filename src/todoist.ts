@@ -91,7 +91,6 @@ export async function createTask(
       project_id: COMMANDS[command].projectId,
       labels,
       priority: issue.priority,
-      ...(issue.dueString ? { due_string: issue.dueString, due_lang: 'en' } : {}),
     }),
   });
 

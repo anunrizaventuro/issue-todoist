@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { configFromEnv, MAX_SUBTASKS, normalizeIssue, TIMEOUT_MS, type LlmConfig } from '../src/llm.ts';
+import { configFromEnv, MAX_ACCEPTANCE, normalizeIssue, TIMEOUT_MS, type LlmConfig } from '../src/llm.ts';
 import { env } from './helpers.ts';
 
 const config: LlmConfig = {
@@ -29,15 +29,9 @@ function reply(content: string, status = 200) {
 
 const GOOD = JSON.stringify({
   title: 'Tombol checkout tidak muncul di mobile',
-  problem: 'Di layar kecil tombol checkout tidak terlihat.',
-  expected: 'Tombol checkout terlihat di semua ukuran layar.',
-  action: 'Buka katalog di ponsel, tambah barang, buka keranjang.',
   priority: 3,
-  dueString: null,
   url: 'https://toko.example.com/keranjang',
-  subtasks: ['Perbaiki z-index navbar', 'Uji di iOS Safari'],
-  needsClarification: false,
-  clarification: null,
+  acceptance: ['Perbaiki z-index navbar', 'Uji di iOS Safari'],
 });
 
 test('a well-formed reply becomes a normalized issue', async () => {
@@ -46,7 +40,7 @@ test('a well-formed reply becomes a normalized issue', async () => {
   assert.ok(issue);
   assert.equal(issue.title, 'Tombol checkout tidak muncul di mobile');
   assert.equal(issue.priority, 3);
-  assert.equal(issue.needsClarification, false);
+  assert.deepEqual(issue.acceptance, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
 });
 
 test('an API error yields null so the caller can fall back', async () => {
@@ -170,66 +164,66 @@ test('streaming is switched off explicitly, since some gateways stream by defaul
   assert.equal(seen.stream, false);
 });
 
-test('the page URL and the subtask list survive into the normalized issue', async () => {
+test('the page URL and the acceptance criterion list survive into the normalized issue', async () => {
   const issue = await normalizeIssue(config, 'tombol checkout ga muncul di hp', reply(GOOD));
 
   assert.ok(issue);
   assert.equal(issue.url, 'https://toko.example.com/keranjang');
-  assert.deepEqual(issue.subtasks, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
+  assert.deepEqual(issue.acceptance, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
 });
 
-test('a reply without subtasks yields an empty list, not a failed normalization', async () => {
-  // Most reports are a single piece of work. Missing subtasks is the norm, not
+test('a reply without acceptance yields an empty list, not a failed normalization', async () => {
+  // Most reports are a single piece of work. Missing acceptance is the norm, not
   // a reason to sink the whole submission to the raw-text fallback.
-  const { subtasks: _drop, ...without } = JSON.parse(GOOD);
+  const { acceptance: _drop, ...without } = JSON.parse(GOOD);
   const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify(without)));
 
-  assert.ok(issue, 'a missing subtasks field must not invalidate the issue');
-  assert.deepEqual(issue.subtasks, []);
+  assert.ok(issue, 'a missing acceptance field must not invalidate the issue');
+  assert.deepEqual(issue.acceptance, []);
 });
 
-test('blank and non-string subtask entries are dropped', async () => {
+test('blank and non-string acceptance criterion entries are dropped', async () => {
   const issue = await normalizeIssue(
     config,
     'apa saja',
-    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: ['  Benerin navbar ', '', '   ', 42, null, { a: 1 }] })),
+    reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: ['  Benerin navbar ', '', '   ', 42, null, { a: 1 }] })),
   );
 
   assert.ok(issue);
-  assert.deepEqual(issue.subtasks, ['Benerin navbar']);
+  assert.deepEqual(issue.acceptance, ['Benerin navbar']);
 });
 
-test('a subtasks field of the wrong type is treated as none', async () => {
+test('a acceptance field of the wrong type is treated as none', async () => {
   const issue = await normalizeIssue(
     config,
     'apa saja',
-    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: 'benerin navbar' })),
+    reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: 'benerin navbar' })),
   );
 
   assert.ok(issue);
-  assert.deepEqual(issue.subtasks, []);
+  assert.deepEqual(issue.acceptance, []);
 });
 
-test('the subtask list is capped so one runaway reply cannot fan out into Todoist', async () => {
-  // Each subtask costs its own API call, so an unbounded list is an unbounded
+test('the acceptance criterion list is capped so one runaway reply cannot fan out into Todoist', async () => {
+  // Each acceptance criterion costs its own API call, so an unbounded list is an unbounded
   // number of writes.
   const many = Array.from({ length: 40 }, (_, i) => `Langkah ${i}`);
-  const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: many })));
+  const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: many })));
 
   assert.ok(issue);
-  assert.ok(issue.subtasks.length <= MAX_SUBTASKS, `got ${issue.subtasks.length}`);
-  assert.equal(issue.subtasks[0], 'Langkah 0', 'the first ones are the ones worth keeping');
+  assert.ok(issue.acceptance.length <= MAX_ACCEPTANCE, `got ${issue.acceptance.length}`);
+  assert.equal(issue.acceptance[0], 'Langkah 0', 'the first ones are the ones worth keeping');
 });
 
-test('an over-long subtask is clipped to what Todoist can display', async () => {
+test('an over-long acceptance criterion is clipped to what Todoist can display', async () => {
   const issue = await normalizeIssue(
     config,
     'apa saja',
-    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: ['y'.repeat(300)] })),
+    reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: ['y'.repeat(300)] })),
   );
 
   assert.ok(issue);
-  assert.ok(issue.subtasks[0]!.length <= 100, `got ${issue.subtasks[0]!.length}`);
+  assert.ok(issue.acceptance[0]!.length <= 100, `got ${issue.acceptance[0]!.length}`);
 });
 
 test('a non-URL string in the url field is discarded rather than filed as a link', async () => {

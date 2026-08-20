@@ -20,15 +20,9 @@ async function submit(e: Env, ctx: Omit<IssueContext, 'normalized'>, extraLabels
 
 const NORMALIZED = JSON.stringify({
   title: 'Checkout tertutup navbar di halaman produk',
-  problem: 'Navbar menutupi tombol checkout.',
-  expected: 'Tombol checkout bisa diklik.',
-  action: 'Buka halaman produk di ponsel.',
   priority: 2,
-  dueString: null,
   url: 'https://toko.example.com/produk',
-  subtasks: ['Benerin z-index navbar', 'Uji di iOS Safari'],
-  needsClarification: false,
-  clarification: null,
+  acceptance: ['Benerin z-index navbar', 'Uji di iOS Safari'],
 });
 
 const context = {
@@ -102,8 +96,9 @@ test('with a provider configured, the issue reaches Todoist normalized', async (
     const body = todoistBody(sent);
     assert.equal(body.priority, 2);
     assert.ok(!body.labels.includes(TRIAGE_LABEL), 'normalized issues do not need triage');
-    assert.match(body.description, /\*\*Masalah\*\*/);
+    assert.match(body.description, /\*\*Halaman\*\*/);
     assert.match(body.description, /Tulisan asli/, 'the original wording must survive');
+    assert.doesNotMatch(body.description, /\*\*Masalah\*\*/, 'prose sections are gone');
   } finally {
     restore();
   }
@@ -160,7 +155,7 @@ test('a failing provider call still files the issue, labelled for triage', async
   }
 });
 
-test('each subtask becomes a child of the created task, in order', async () => {
+test('each acceptance criterion becomes a child of the created task, in order', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
     const result = await submit(configured, context);
@@ -175,8 +170,8 @@ test('each subtask becomes a child of the created task, in order', async () => {
   }
 });
 
-test('a report with no subtasks makes no extra Todoist calls', async () => {
-  const { sent, restore } = stubFetch(JSON.stringify({ ...JSON.parse(NORMALIZED), subtasks: [] }));
+test('a report with no acceptance criteria makes no extra Todoist calls', async () => {
+  const { sent, restore } = stubFetch(JSON.stringify({ ...JSON.parse(NORMALIZED), acceptance: [] }));
   try {
     const result = await submit(configured, context);
 
@@ -187,7 +182,7 @@ test('a report with no subtasks makes no extra Todoist calls', async () => {
   }
 });
 
-test('a subtask that cannot be saved does not fail the submission', async () => {
+test('an acceptance criterion that cannot be saved does not fail the submission', async () => {
   // The main task is already stored by then; discarding it because a child
   // write failed would lose the report over a detail.
   const { sent, restore } = stubFetch(NORMALIZED, true);

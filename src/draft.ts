@@ -25,29 +25,23 @@ export interface Draft {
 export type DraftStatus = 'pending' | 'filed' | 'cancelled';
 
 /**
- * What the reporter wrote, as the edit modal carries it.
+ * Everything a draft card can correct, as the one edit modal carries it.
  *
- * Split from AiFields because Discord caps a modal at five components and six
- * fields need correcting — but also because the two are opened for different
- * reasons: this one fixes your own wording, the other checks the model's guess.
+ * All four fit in a single modal now that the issue itself is four fields —
+ * the five-component cap that once forced a second "Detail AI" modal no longer
+ * binds. Editing these touches the model's output directly; there is no longer
+ * a separate pass that asks the model to try again.
  */
 export interface EditFields {
   title: string;
   url: string | null;
-  problem: string;
   why: string | null;
+  acceptance: string[];
 }
 
-/** What the model produced, as the second modal carries it. */
-export interface AiFields {
-  expected: string | null;
-  action: string | null;
-  dueString: string | null;
-}
+export type DraftAction = 'ok' | 'edit' | 'pr' | 'x';
 
-export type DraftAction = 'ok' | 'edit' | 'ai' | 'rw' | 'pr' | 'x';
-
-const ACTIONS: readonly DraftAction[] = ['ok', 'edit', 'ai', 'rw', 'pr', 'x'];
+const ACTIONS: readonly DraftAction[] = ['ok', 'edit', 'pr', 'x'];
 
 /**
  * `d:` for components, `dm:` for the modals they open.
@@ -84,7 +78,7 @@ export function claim(draft: Draft, status: 'filed' | 'cancelled'): Draft | null
   return draft.status === 'pending' ? { ...draft, status } : null;
 }
 
-/** Overwrites the reporter's own fields, leaving the model's output alone. */
+/** Overwrites every field the reporter is allowed to correct. */
 export function applyEdit(draft: Draft, fields: EditFields): Draft {
   return {
     ...draft,
@@ -94,36 +88,9 @@ export function applyEdit(draft: Draft, fields: EditFields): Draft {
       // A reporter can type anything into the form, and a non-link rendered as a
       // URL is a dead link in the ticket.
       url: toUrl(fields.url),
-      problem: fields.problem,
       why: fields.why,
+      acceptance: fields.acceptance,
     },
-  };
-}
-
-/** Overwrites the model's output, leaving what the reporter wrote alone. */
-export function applyAiEdit(draft: Draft, fields: AiFields): Draft {
-  return {
-    ...draft,
-    issue: {
-      ...draft.issue,
-      expected: fields.expected,
-      action: fields.action,
-      dueString: fields.dueString,
-    },
-  };
-}
-
-/**
- * Replaces everything the model produces after a second pass.
- *
- * `why` survives because the model never writes it, and a rewrite of the
- * description is not a reason to discard the reporter's own reason.
- */
-export function applyRewrite(draft: Draft, issue: NormalizedIssue, rawInput: string): Draft {
-  return {
-    ...draft,
-    issue: { ...issue, why: draft.issue.why },
-    context: { ...draft.context, rawInput },
   };
 }
 
@@ -147,8 +114,6 @@ export interface DraftStub {
   start(draft: Draft, windowMs: number): Promise<void>;
   read(): Promise<Draft | null>;
   edit(fields: EditFields): Promise<Draft | null>;
-  editAi(fields: AiFields): Promise<Draft | null>;
-  rewrite(issue: NormalizedIssue, rawInput: string): Promise<Draft | null>;
   priority(value: number): Promise<Draft | null>;
   approve(): Promise<ProcessResult | 'closed'>;
   cancel(): Promise<Draft | null>;

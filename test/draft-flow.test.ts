@@ -103,18 +103,27 @@ test('Edit opens a modal prefilled from the draft', async () => {
   assert.equal(body.type, RESPONSE_MODAL);
   assert.equal(body.data.custom_id, `dm:edit:${ID}`);
   const ids = body.data.components.map((c: any) => c.component.custom_id);
-  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'why']);
+  assert.deepEqual(ids, ['title', 'page_url', 'why', 'acceptance']);
   assert.ok(body.data.components.length <= 5, 'Discord caps a modal at 5 components');
   assert.equal(body.data.components[0].component.value, 'Kodepos kosong');
 });
 
-test('Tulis ulang opens a modal holding the original text', async () => {
+test('the card offers three buttons, and none of them opens a second modal', async () => {
   const { env } = withDraft(pending());
-  const { body } = await call(click('rw'), env);
+  const { body } = await call(click('pr'), env);
 
-  assert.equal(body.type, RESPONSE_MODAL);
-  assert.equal(body.data.custom_id, `dm:rw:${ID}`);
-  assert.match(JSON.stringify(body.data.components), /kodepos tidak terisi otomatis/);
+  const buttons = body.data.components[0].components;
+  assert.deepEqual(buttons.map((b: any) => b.label), ['Approve', 'Edit', 'Batal']);
+});
+
+test('the buttons that used to open the other modals are gone', async () => {
+  const { env } = withDraft(pending());
+  for (const dead of ['ai', 'rw']) {
+    const { body } = await call(click(dead), env);
+    // parseDraftCustomId no longer knows these actions, so they fall through
+    // to the unknown-button branch rather than reaching the draft.
+    assert.equal(body.type, RESPONSE_MESSAGE, `${dead} must no longer be routable`);
+  }
 });
 
 test('submitting the edit updates the card inline, without calling the model', async () => {
@@ -125,14 +134,19 @@ test('submitting the edit updates the card inline, without calling the model', a
       modalSubmit('edit', [
         label('title', 'Kodepos tidak terisi otomatis'),
         label('page_url', 'https://app.example.com/checkout'),
-        label('raw_input', 'kodepos kosong terus'),
         label('why', 'pelanggan batal checkout'),
+        label('acceptance', 'Kodepos terisi otomatis\n\n- Alamat bertingkat tersedia'),
       ]),
       env,
     );
 
     assert.equal(body.type, RESPONSE_UPDATE, 'no provider call, so no need to defer');
-    assert.match(JSON.stringify(body.data), /Kodepos tidak terisi otomatis/);
+    const card = JSON.stringify(body.data);
+    assert.match(card, /Kodepos tidak terisi otomatis/);
+    assert.match(card, /pelanggan batal checkout/);
+    assert.match(card, /Kodepos terisi otomatis/, 'the AI output is edited directly now');
+    assert.match(card, /Alamat bertingkat tersedia/, 'a bulleted line keeps its text, not its bullet');
+    assert.doesNotMatch(card, /• -/, 'the bullet the card adds must not be doubled');
     assert.equal(outbound.sent.length, 0, 'editing must not file anything');
   } finally {
     outbound.restore();
@@ -208,54 +222,9 @@ test('a draft button from another guild never reaches the draft store', async ()
   assert.match(body.data.content, /belum diaktifkan/i);
 });
 
-test('Detail AI opens a modal over what the model produced', async () => {
-  const { env } = withDraft(
-    pending({
-      issue: {
-        ...fromRawInput('kodepos kosong'),
-        title: 'Kodepos kosong',
-        expected: 'terisi dari kelurahan',
-        action: 'pilih kelurahan',
-        dueString: 'tomorrow',
-      },
-    }),
-  );
-  const { body } = await call(click('ai'), env);
-
-  assert.equal(body.type, RESPONSE_MODAL);
-  assert.equal(body.data.custom_id, `dm:ai:${ID}`);
-  const ids = body.data.components.map((c: any) => c.component.custom_id);
-  assert.deepEqual(ids, ['expected', 'action', 'due']);
-  assert.equal(body.data.components[2].component.value, 'tomorrow', 'the due date is editable now');
-});
-
-test('submitting the AI modal updates the card without touching what you wrote', async () => {
-  const outbound = captureFetch();
-  try {
-    const { env } = withDraft(pending());
-    const { body } = await call(
-      modalSubmit('ai', [
-        label('expected', 'kodepos terisi sendiri'),
-        label('action', ''),
-        label('due', 'next monday'),
-      ]),
-      env,
-    );
-
-    assert.equal(body.type, RESPONSE_UPDATE);
-    const card = JSON.stringify(body.data);
-    assert.match(card, /kodepos terisi sendiri/);
-    assert.match(card, /next monday/);
-    assert.match(card, /Kodepos kosong/, 'the title you wrote must survive');
-    assert.equal(outbound.sent.length, 0);
-  } finally {
-    outbound.restore();
-  }
-});
-
-test('the two edit modals together cover every field Discord can carry', () => {
-  // Six fields do not fit in one modal, so the split must not lose one.
-  const both = ['title', 'page_url', 'raw_input', 'why', 'expected', 'action', 'due'];
-  assert.equal(new Set(both).size, both.length);
-  assert.ok(both.length > 5, 'this is exactly why there are two modals');
+test('every field the card can correct fits in the one modal', () => {
+  // The whole reason the second modal could go away.
+  const fields = ['title', 'page_url', 'why', 'acceptance'];
+  assert.equal(new Set(fields).size, fields.length);
+  assert.ok(fields.length <= 5, 'Discord caps a modal at 5 components');
 });
