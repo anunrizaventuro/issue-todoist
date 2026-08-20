@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { after, before, beforeEach } from 'node:test';
 
+import { buildIssueModal } from '../src/discord.ts';
 import { handleInteraction } from '../src/handler.ts';
 import { findValue } from '../src/interaction.ts';
 import { captureFetch, env, signed } from './helpers.ts';
@@ -93,4 +94,42 @@ test('leaving the URL field blank files the issue without a Halaman section', as
   await Promise.all(deferred);
 
   assert.ok(!filedTask().description.includes('**Halaman**'));
+});
+
+test('the modal asks for title, url, description and images in that order', () => {
+  const modal = buildIssueModal('issue');
+  const ids = modal.data.components.map((c: any) => c.component.custom_id);
+  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'attachments']);
+});
+
+test('the title typed into the form beats the one the model would pick', async () => {
+  const payload = submission('tombol checkout ketutup navbar di mobile');
+  payload.data.components.push({
+    type: 18,
+    component: { type: 4, custom_id: 'title', value: 'Navbar menutupi tombol checkout' },
+  });
+
+  const { deferred } = await call(payload);
+  await Promise.all(deferred);
+
+  assert.equal(filedTask().content, 'Navbar menutupi tombol checkout');
+});
+
+test('a title longer than Todoist keeps is clipped, not dropped', async () => {
+  const payload = submission('tombol checkout ketutup navbar di mobile');
+  payload.data.components.push({
+    type: 18,
+    component: { type: 4, custom_id: 'title', value: 'x'.repeat(150) },
+  });
+
+  const { deferred } = await call(payload);
+  await Promise.all(deferred);
+
+  assert.ok(filedTask().content.length <= 100, `got ${filedTask().content.length}`);
+});
+
+test('without a title field the model keeps deciding, as the right-click path needs', async () => {
+  const { deferred } = await call(submission('tombol checkout ketutup navbar di mobile'));
+  await Promise.all(deferred);
+  assert.equal(filedTask().content, 'tombol checkout ketutup navbar di mobile');
 });

@@ -25,6 +25,7 @@ const context = {
   filedBy: null,
   sourceLink: null,
   attachments: [],
+  typedTitle: null,
   pageUrl: null,
 };
 

@@ -24,7 +24,7 @@ export const COMMANDS = {
     projectId: '6hHmCp3r5qgFW9Q4',
     labels: ['discord'],
     modalTitle: 'Input Issue',
-    fieldLabel: 'Issue',
+    fieldLabel: 'Deskripsi',
     placeholder: 'Tulis issue-nya di sini, seberantakan apa pun...',
     description: 'Buat issue baru',
   },

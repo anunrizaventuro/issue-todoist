@@ -33,6 +33,8 @@ export interface IssueContext {
   /** Set only when someone filed another person's message. */
   filedBy: string | null;
   sourceLink: string | null;
+  /** Title typed into the form. Outranks the one the model produced. */
+  typedTitle: string | null;
   /** URL typed into the form. Outranks whatever the model found in the text. */
   pageUrl: string | null;
   attachments: DiscordAttachment[];

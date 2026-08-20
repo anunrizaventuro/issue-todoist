@@ -24,6 +24,13 @@ async function modalComponents(): Promise<any[]> {
 const openModal = () =>
   call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
 
+/** By custom_id rather than position, so reordering the form breaks nothing. */
+async function field(customId: string): Promise<any> {
+  const found = (await modalComponents()).find((c) => c.component.custom_id === customId);
+  assert.ok(found, `no field with custom_id ${customId}`);
+  return found;
+}
+
 test('/issue responds with a modal titled Input Issue', async () => {
   const res = await openModal();
   assert.equal(res.status, 200);
@@ -38,15 +45,28 @@ test('every field sits inside a Label, not an Action Row', async () => {
   // Action Rows are deprecated for modal inputs; Discord expects a Label.
   const components = await modalComponents();
 
-  assert.equal(components.length, 3);
+  assert.equal(components.length, 4);
   assert.ok(components.length <= 5, 'Discord caps a modal at 5 components');
   for (const component of components) {
     assert.equal(component.type, COMPONENT_LABEL);
   }
 });
 
+test('the form asks for title, url, description and images in that order', async () => {
+  const ids = (await modalComponents()).map((c: any) => c.component.custom_id);
+  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'attachments']);
+});
+
+test('the title is required and capped where Todoist truncates', async () => {
+  const title = await field('title');
+  assert.equal(title.component.type, COMPONENT_TEXT_INPUT);
+  assert.equal(title.component.style, STYLE_SHORT);
+  assert.equal(title.component.required, true);
+  assert.equal(title.component.max_length, 100, 'clipTitle enforces the same ceiling');
+});
+
 test('the text field is a required paragraph with a length floor', async () => {
-  const [text] = await modalComponents();
+  const text = await field('raw_input');
   assert.equal(text.component.type, COMPONENT_TEXT_INPUT);
   assert.equal(text.component.style, STYLE_PARAGRAPH);
   assert.equal(text.component.custom_id, 'raw_input');
@@ -58,7 +78,7 @@ test('the text field is a required paragraph with a length floor', async () => {
 test('the image field is optional', async () => {
   // File Upload defaults to required:true inside modals, which would block
   // every text-only issue. This must stay explicitly false.
-  const [, , files] = await modalComponents();
+  const files = await field('attachments');
   assert.equal(files.component.type, COMPONENT_FILE_UPLOAD);
   assert.equal(files.component.custom_id, 'attachments');
   assert.equal(files.component.required, false);
@@ -69,7 +89,7 @@ test('the image field is optional', async () => {
 test('the URL field is an optional single-line input', async () => {
   // Most issues are not about one specific page, so requiring this would make
   // the form heavier for the common case.
-  const [, url] = await modalComponents();
+  const url = await field('page_url');
   assert.equal(url.component.type, COMPONENT_TEXT_INPUT);
   assert.equal(url.component.style, STYLE_SHORT);
   assert.equal(url.component.custom_id, 'page_url');

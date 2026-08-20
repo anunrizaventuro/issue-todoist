@@ -6,6 +6,9 @@ import {
 } from 'discord-interactions';
 import { COMMANDS, type CommandName } from './commands.ts';
 
+/** custom_id of the title field. */
+export const TITLE_ID = 'title';
+
 /** custom_id of the textarea inside the issue modal. */
 export const RAW_INPUT_ID = 'raw_input';
 
@@ -44,16 +47,17 @@ export function buildIssueModal(command: CommandName) {
       components: [
         {
           type: MessageComponentTypes.LABEL,
-          label: config.fieldLabel,
-          description: 'Tulis sebebasnya — sistem yang akan merapikan.',
+          label: 'Judul',
+          description: 'Satu baris yang bisa dipindai sekilas.',
           component: {
             type: MessageComponentTypes.INPUT_TEXT,
-            custom_id: RAW_INPUT_ID,
-            style: TextStyleTypes.PARAGRAPH,
+            custom_id: TITLE_ID,
+            style: TextStyleTypes.SHORT,
             required: true,
-            min_length: 10,
-            max_length: 4000,
-            placeholder: config.placeholder,
+            min_length: 5,
+            // Todoist truncates past this, and clipTitle enforces the same ceiling.
+            max_length: 100,
+            placeholder: 'Kodepos tidak terisi otomatis',
           },
         },
         {
@@ -67,6 +71,20 @@ export function buildIssueModal(command: CommandName) {
             required: false,
             max_length: 500,
             placeholder: 'https://...',
+          },
+        },
+        {
+          type: MessageComponentTypes.LABEL,
+          label: config.fieldLabel,
+          description: 'Kenapa ini masalah? Tulis sebebasnya — sistem yang merapikan.',
+          component: {
+            type: MessageComponentTypes.INPUT_TEXT,
+            custom_id: RAW_INPUT_ID,
+            style: TextStyleTypes.PARAGRAPH,
+            required: true,
+            min_length: 10,
+            max_length: 4000,
+            placeholder: config.placeholder,
           },
         },
         {

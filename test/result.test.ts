@@ -11,6 +11,7 @@ const context: Omit<IssueContext, 'normalized'> = {
   author: 'rifa',
   filedBy: null,
   sourceLink: null,
+  typedTitle: null,
   pageUrl: null,
   attachments: [],
 };

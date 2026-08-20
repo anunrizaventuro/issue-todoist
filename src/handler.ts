@@ -12,6 +12,7 @@ import {
   MODAL_PREFIX,
   PAGE_URL_ID,
   RAW_INPUT_ID,
+  TITLE_ID,
 } from './discord.ts';
 import { editOriginalResponse } from './followup.ts';
 import {
@@ -127,9 +128,10 @@ function handleModalSubmit(interaction: Interaction, env: Env, waitUntil: WaitUn
   }
 
   const pageUrl = findValue(interaction.data.components, PAGE_URL_ID)?.trim() || null;
+  const typedTitle = findValue(interaction.data.components, TITLE_ID)?.trim() || null;
 
   // ACK now, work later: everything past this point is outside the 3-second budget.
-  waitUntil(createAndReport(interaction, env, command, rawInput, { pageUrl }));
+  waitUntil(createAndReport(interaction, env, command, rawInput, { pageUrl, typedTitle }));
   return json(deferEphemeral());
 }
 
@@ -185,7 +187,8 @@ async function createAndReport(
     author: authorOf(interaction),
     filedBy: null,
     sourceLink: sourceLinkOf(interaction),
-    // Only the modal has a URL field; the context menu leaves it to the model.
+    // Only the modal has these fields; the context menu leaves them to the model.
+    typedTitle: null,
     pageUrl: null,
     attachments: attachmentsOf(interaction),
     ...overrides,

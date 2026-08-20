@@ -1,5 +1,5 @@
 import { configFromEnv, normalizeIssue } from './llm.ts';
-import { fromRawInput, toUrl, type IssueContext, type NormalizedIssue } from './issue.ts';
+import { clipTitle, fromRawInput, toUrl, type IssueContext, type NormalizedIssue } from './issue.ts';
 import {
   attachToTask,
   createSubtasks,
@@ -43,7 +43,11 @@ export async function processSubmission(
   const base = normalized ?? fromRawInput(context.rawInput);
   // What the reporter typed into the form beats what the model read out of the
   // prose, and survives even when no model ran.
-  const issue: NormalizedIssue = { ...base, url: toUrl(context.pageUrl) ?? base.url };
+  const issue: NormalizedIssue = {
+    ...base,
+    title: context.typedTitle ? clipTitle(context.typedTitle) : base.title,
+    url: toUrl(context.pageUrl) ?? base.url,
+  };
   const fullContext: IssueContext = { ...context, normalized: normalized !== null };
 
   // Uploaded before the task is created, not after: the description decides

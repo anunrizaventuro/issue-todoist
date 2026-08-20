@@ -9,6 +9,7 @@ const base: Omit<IssueContext, 'normalized'> = {
   author: 'rifa',
   filedBy: null,
   sourceLink: 'https://discord.com/channels/1/2',
+  typedTitle: null,
   pageUrl: null,
   attachments: [],
 };
