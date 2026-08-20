@@ -342,7 +342,7 @@ export async function attachToTask(
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ task_id: taskId, attachment: file }),
+        body: JSON.stringify({ task_id: taskId, content: file.file_name, attachment: file }),
       });
       if (res.ok) attached++;
       else console.error(`Todoist comment ${res.status}: ${await res.text()}`);
@@ -357,7 +357,7 @@ export async function attachToTask(
 
 Tambahkan `import type { DiscordAttachment } from './interaction.ts';` di atas.
 
-Kalau Task 1 menemukan `/comments` menuntut `content`, tambahkan `content: file.file_name` ke body dan catat alasannya sebagai komentar.
+**Terbukti 2026-08-20:** `/comments` memang menuntut `content` — tanpa itu balasannya `400 ARGUMENT_MISSING`. Nama file adalah isi paling tidak berisik untuk ditaruh di sana.
 
 - [ ] **Step 4: Run tests**
 

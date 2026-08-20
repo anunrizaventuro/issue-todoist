@@ -825,7 +825,7 @@ export async function fileIssue(
   extraLabels: string[] = [],
 ): Promise<ProcessResult> {
   try {
-    const task = await createTask(env.TODOIST_API_TOKEN, issue, context, extraLabels);
+    const task = await createTask(env.TODOIST_API_TOKEN, issue, context, images.failed, extraLabels);
     const subtasks = issue.subtasks.length
       ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, issue.subtasks)
       : { created: 0, failed: 0 };
@@ -871,12 +871,18 @@ export async function createTask(
   token: string,
   issue: NormalizedIssue,
   context: IssueContext,
+  /** Images that could not be uploaded, so the description still links them. */
+  unattached: DiscordAttachment[] = context.attachments,
   extraLabels: string[] = [],
 ): Promise<CreatedTask> {
   const command: CommandName = context.command;
   const labels = [...COMMANDS[command].labels, ...extraLabels];
   if (!context.normalized) labels.push(TRIAGE_LABEL);
 ```
+
+**Catatan:** `unattached` sudah lebih dulu ada di parameter keempat sejak plan
+gambar dikerjakan, jadi `extraLabels` masuk sebagai yang kelima. Pemanggilan di
+`fileIssue` ikut menyesuaikan: `createTask(token, issue, context, images.failed, extraLabels)`.
 
 - [ ] **Step 5: Lepaskan `followup.ts` dari `Interaction`**
 
