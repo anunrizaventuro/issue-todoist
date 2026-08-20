@@ -7,6 +7,9 @@ const API = 'https://api.todoist.com/api/v1';
 /** Applied when the text was not normalized, so unreviewed issues stay findable. */
 export const TRIAGE_LABEL = 'needs-triage';
 
+/** Applied when nobody approved the draft in time and the alarm filed it. */
+export const REVIEW_LABEL = 'needs-review';
+
 export interface CreatedTask {
   id: string;
   url: string;
@@ -25,9 +28,10 @@ export async function createTask(
   context: IssueContext,
   /** Images that could not be uploaded, so the description still links them. */
   unattached: DiscordAttachment[] = context.attachments,
+  extraLabels: string[] = [],
 ): Promise<CreatedTask> {
   const command: CommandName = context.command;
-  const labels = [...COMMANDS[command].labels];
+  const labels = [...COMMANDS[command].labels, ...extraLabels];
   if (!context.normalized) labels.push(TRIAGE_LABEL);
 
   const res = await fetch(`${API}/tasks`, {

@@ -27,7 +27,7 @@ import {
   type Interaction,
 } from './interaction.ts';
 import type { IssueContext } from './issue.ts';
-import { processSubmission } from './process.ts';
+import { fileIssue, normalizeSubmission } from './process.ts';
 import { resultMessage } from './result.ts';
 import type { Env } from './env.ts';
 
@@ -194,8 +194,9 @@ async function createAndReport(
     ...overrides,
   };
 
-  const result = await processSubmission(env, context);
-  await editOriginalResponse(interaction, resultMessage(result, context));
+  const { issue, context: full } = await normalizeSubmission(env, context);
+  const result = await fileIssue(env, issue, full);
+  await editOriginalResponse(interaction, resultMessage(result, full));
 }
 
 export function json(body: unknown, status = 200): Response {

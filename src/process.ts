@@ -26,39 +26,57 @@ export interface ProcessResult {
 }
 
 /**
- * Turns a submission into a Todoist task.
+ * Turns raw input into a structured issue, without writing anything.
  *
- * Normalization is best-effort: with no provider configured, or when the call
- * fails, the text passes through verbatim and the task is labelled for triage
- * instead. Losing the report is never an acceptable outcome — a rough task the
- * reporter can still read beats no task at all.
+ * Split from filing because the reporter reviews the result before it is saved,
+ * and because the alarm that files an abandoned draft must not pay for a second
+ * normalization.
+ *
+ * Best-effort by design: with no provider configured, or when the call fails,
+ * the text passes through verbatim and `normalized` comes back false. Losing the
+ * report is never an acceptable outcome.
  */
-export async function processSubmission(
+export async function normalizeSubmission(
   env: Env,
   context: Omit<IssueContext, 'normalized'>,
-): Promise<ProcessResult> {
+): Promise<{ issue: NormalizedIssue; context: IssueContext }> {
   const config = configFromEnv(env);
   const normalized = config ? await normalizeIssue(config, context.rawInput) : null;
-
   const base = normalized ?? fromRawInput(context.rawInput);
-  // What the reporter typed into the form beats what the model read out of the
-  // prose, and survives even when no model ran.
-  const issue: NormalizedIssue = {
-    ...base,
-    title: context.typedTitle ? clipTitle(context.typedTitle) : base.title,
-    url: toUrl(context.pageUrl) ?? base.url,
-  };
-  const fullContext: IssueContext = { ...context, normalized: normalized !== null };
 
-  // Uploaded before the task is created, not after: the description decides
-  // whether to write a Discord link based on what Todoist already holds, and a
-  // Discord CDN link in a ticket is dead within about 24 hours.
+  return {
+    // What the reporter typed into the form beats what the model read out of the
+    // prose, and survives even when no model ran.
+    issue: {
+      ...base,
+      title: context.typedTitle ? clipTitle(context.typedTitle) : base.title,
+      url: toUrl(context.pageUrl) ?? base.url,
+    },
+    context: { ...context, normalized: normalized !== null },
+  };
+}
+
+/**
+ * Writes the issue to Todoist.
+ *
+ * A rejected write comes back as an error the caller can show rather than an
+ * exception: a rough task the reporter can still read beats no task at all.
+ */
+export async function fileIssue(
+  env: Env,
+  issue: NormalizedIssue,
+  context: IssueContext,
+  extraLabels: string[] = [],
+): Promise<ProcessResult> {
+  // Uploaded before the task is created: the description decides whether to
+  // write a Discord link based on what Todoist already holds, and a Discord CDN
+  // link in a ticket is dead within about 24 hours.
   const images = context.attachments.length
     ? await uploadAttachments(env.TODOIST_API_TOKEN, context.attachments)
     : { uploaded: [], failed: [] };
 
   try {
-    const task = await createTask(env.TODOIST_API_TOKEN, issue, fullContext, images.failed);
+    const task = await createTask(env.TODOIST_API_TOKEN, issue, context, images.failed, extraLabels);
     const subtasks = issue.subtasks.length
       ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, issue.subtasks)
       : { created: 0, failed: 0 };
@@ -70,7 +88,7 @@ export async function processSubmission(
       issue,
       task,
       error: null,
-      normalized: fullContext.normalized,
+      normalized: context.normalized,
       subtasksCreated: subtasks.created,
       subtasksFailed: subtasks.failed,
       attachmentsUploaded: attached,
@@ -83,7 +101,7 @@ export async function processSubmission(
       issue,
       task: null,
       error: String(cause),
-      normalized: fullContext.normalized,
+      normalized: context.normalized,
       subtasksCreated: 0,
       subtasksFailed: 0,
       attachmentsUploaded: 0,

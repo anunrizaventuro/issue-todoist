@@ -1,9 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { processSubmission } from '../src/process.ts';
-import { TRIAGE_LABEL } from '../src/todoist.ts';
+import { fileIssue, normalizeSubmission } from '../src/process.ts';
+import type { IssueContext } from '../src/issue.ts';
+import { REVIEW_LABEL, TRIAGE_LABEL } from '../src/todoist.ts';
 import { env } from './helpers.ts';
+import type { Env } from '../src/env.ts';
+
+/**
+ * The two halves back to back.
+ *
+ * They are split so the reporter can review in between, but every assertion
+ * below is about the pair as a whole, which is still exactly one submission.
+ */
+async function submit(e: Env, ctx: Omit<IssueContext, 'normalized'>, extraLabels: string[] = []) {
+  const { issue, context } = await normalizeSubmission(e, ctx);
+  return fileIssue(e, issue, context, extraLabels);
+}
 
 const NORMALIZED = JSON.stringify({
   title: 'Checkout tertutup navbar di halaman produk',
@@ -78,7 +91,7 @@ const childBodies = (sent: any[]) =>
 test('with a provider configured, the issue reaches Todoist normalized', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission(configured, context);
+    const result = await submit(configured, context);
 
     assert.equal(result.error, null);
     assert.equal(result.issue.title, 'Checkout tertutup navbar di halaman produk');
@@ -96,7 +109,7 @@ test('with a provider configured, the issue reaches Todoist normalized', async (
 test('the configured model is the one actually called', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    await processSubmission({ ...configured, LLM_MODEL: 'vendor/some-other-model' }, context);
+    await submit({ ...configured, LLM_MODEL: 'vendor/some-other-model' }, context);
 
     const call = sent.find((r) => r.url.includes('llm.example.com'))!;
     assert.equal(call.url, 'https://llm.example.com/v1/chat/completions');
@@ -109,7 +122,7 @@ test('the configured model is the one actually called', async () => {
 test('without provider config, the raw text is filed for triage instead', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission(env, context);
+    const result = await submit(env, context);
 
     assert.equal(result.issue.title, context.rawInput);
     assert.ok(!sent.some((r) => r.url.includes('llm.example.com')), 'no provider must be called');
@@ -122,7 +135,7 @@ test('without provider config, the raw text is filed for triage instead', async 
 test('a half-filled config is treated as no config rather than a failed call', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission({ ...configured, LLM_API_KEY: '' }, context);
+    const result = await submit({ ...configured, LLM_API_KEY: '' }, context);
 
     assert.equal(result.issue.title, context.rawInput);
     assert.ok(!sent.some((r) => r.url.includes('llm.example.com')), 'no provider must be called');
@@ -134,7 +147,7 @@ test('a half-filled config is treated as no config rather than a failed call', a
 test('a failing provider call still files the issue, labelled for triage', async () => {
   const { sent, restore } = stubFetch(null);
   try {
-    const result = await processSubmission(configured, context);
+    const result = await submit(configured, context);
 
     assert.equal(result.error, null, 'a provider outage must not fail the submission');
     assert.equal(result.issue.title, context.rawInput);
@@ -147,7 +160,7 @@ test('a failing provider call still files the issue, labelled for triage', async
 test('each subtask becomes a child of the created task, in order', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission(configured, context);
+    const result = await submit(configured, context);
 
     const children = childBodies(sent);
     assert.deepEqual(children.map((c) => c.content), ['Benerin z-index navbar', 'Uji di iOS Safari']);
@@ -162,7 +175,7 @@ test('each subtask becomes a child of the created task, in order', async () => {
 test('a report with no subtasks makes no extra Todoist calls', async () => {
   const { sent, restore } = stubFetch(JSON.stringify({ ...JSON.parse(NORMALIZED), subtasks: [] }));
   try {
-    const result = await processSubmission(configured, context);
+    const result = await submit(configured, context);
 
     assert.equal(childBodies(sent).length, 0);
     assert.equal(result.subtasksCreated, 0);
@@ -176,7 +189,7 @@ test('a subtask that cannot be saved does not fail the submission', async () => 
   // write failed would lose the report over a detail.
   const { sent, restore } = stubFetch(NORMALIZED, true);
   try {
-    const result = await processSubmission(configured, context);
+    const result = await submit(configured, context);
 
     assert.equal(result.error, null);
     assert.ok(result.task, 'the main task must survive a failing child write');
@@ -191,7 +204,7 @@ test('a subtask that cannot be saved does not fail the submission', async () => 
 test('the URL typed into the form wins over the one the model produced', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission(configured, {
+    const result = await submit(configured, {
       ...context,
       pageUrl: 'https://toko.example.com/keranjang',
     });
@@ -210,7 +223,7 @@ test('the URL typed into the form wins over the one the model produced', async (
 test('the model-found URL is used when the form field was left empty', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    await processSubmission(configured, context);
+    await submit(configured, context);
     assert.match(todoistBody(sent).description, /toko\.example\.com\/produk/);
   } finally {
     restore();
@@ -220,7 +233,7 @@ test('the model-found URL is used when the form field was left empty', async () 
 test('the form URL survives even when no model ran at all', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission(env, { ...context, pageUrl: 'https://toko.example.com/keranjang' });
+    const result = await submit(env, { ...context, pageUrl: 'https://toko.example.com/keranjang' });
 
     assert.equal(result.issue.url, 'https://toko.example.com/keranjang');
     assert.match(todoistBody(sent).description, /\*\*Halaman\*\*/);
@@ -232,7 +245,7 @@ test('the form URL survives even when no model ran at all', async () => {
 test('a form URL that is not a link is dropped rather than filed', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
-    const result = await processSubmission(env, { ...context, pageUrl: 'halaman keranjang' });
+    const result = await submit(env, { ...context, pageUrl: 'halaman keranjang' });
 
     assert.equal(result.issue.url, null);
     assert.ok(!todoistBody(sent).description.includes('**Halaman**'));
@@ -292,7 +305,7 @@ const withImage = {
 test('images are uploaded before the task, then attached to it', async () => {
   const { order, restore } = stubUploads();
   try {
-    const result = await processSubmission(env, withImage);
+    const result = await submit(env, withImage);
 
     // The description can only leave out the Discord link if the upload already
     // happened by the time the task is written.
@@ -317,7 +330,7 @@ test('an image Todoist accepted is not also filed as a Discord link', async () =
   }) as any;
 
   try {
-    await processSubmission(env, withImage);
+    await submit(env, withImage);
     const task = sent.map((b) => JSON.parse(b)).find((b) => b.content && !b.attachment)!;
     assert.ok(!task.description.includes('cdn.discordapp.com'));
     assert.ok(!task.description.includes('kedaluwarsa'));
@@ -330,7 +343,7 @@ test('an image Todoist accepted is not also filed as a Discord link', async () =
 test('an image too big for the plan leaves the report intact', async () => {
   const { order, restore } = stubUploads();
   try {
-    const result = await processSubmission(env, {
+    const result = await submit(env, {
       ...withImage,
       attachments: [{ ...withImage.attachments[0]!, size: 6 * 1024 * 1024 }],
     });
@@ -347,9 +360,54 @@ test('an image too big for the plan leaves the report intact', async () => {
 test('a rejected upload still files the task, with the Discord link kept', async () => {
   const { restore } = stubUploads(413);
   try {
-    const result = await processSubmission(env, withImage);
+    const result = await submit(env, withImage);
     assert.ok(result.task);
     assert.equal(result.attachmentsFailed, 1);
+  } finally {
+    restore();
+  }
+});
+
+test('normalizing writes nothing anywhere', async () => {
+  const { sent, restore } = stubFetch(NORMALIZED);
+  try {
+    const { issue, context: full } = await normalizeSubmission(configured, context);
+
+    assert.equal(issue.title, 'Checkout tertutup navbar di halaman produk');
+    assert.equal(full.normalized, true);
+    assert.ok(!sent.some((r) => r.url.includes('todoist')), 'nothing may be filed yet');
+  } finally {
+    restore();
+  }
+});
+
+test('filing applies the extra labels it is handed', async () => {
+  const { sent, restore } = stubFetch(null);
+  try {
+    await submit(configured, context, [REVIEW_LABEL]);
+
+    const labels = todoistBody(sent).labels;
+    assert.ok(labels.includes(REVIEW_LABEL), 'an abandoned draft must be findable');
+    assert.ok(labels.includes(TRIAGE_LABEL), 'the un-normalized label still applies');
+  } finally {
+    restore();
+  }
+});
+
+test('a draft filed twice would be two tasks, so filing is the caller\'s single shot', async () => {
+  // Guards the split itself: fileIssue must not normalize again on its own.
+  const { sent, restore } = stubFetch(NORMALIZED);
+  try {
+    const { issue, context: full } = await normalizeSubmission(configured, context);
+    const llmCalls = sent.filter((r) => r.url.includes('llm.example.com')).length;
+
+    await fileIssue(configured, issue, full);
+
+    assert.equal(
+      sent.filter((r) => r.url.includes('llm.example.com')).length,
+      llmCalls,
+      'filing must not pay for a second normalization',
+    );
   } finally {
     restore();
   }
