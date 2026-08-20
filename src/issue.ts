@@ -23,14 +23,14 @@ export interface NormalizedIssue {
    */
   why: string | null;
   /**
-   * What has to be true before this is done, one item each.
+   * The work the report asks for, one imperative item each.
    *
    * The model produces these by breaking the reporter's description apart, and
    * Todoist writes them as child tasks so each can be ticked off on its own.
-   * Absent entirely on drafts stored before this field existed, so readers must
-   * tolerate `undefined` too.
+   * Written as commands rather than finished states: these are things nobody
+   * has done yet, and phrasing them as done reads as a claim, not a task.
    */
-  acceptance: string[];
+  subtasks: string[];
 }
 
 export interface IssueContext {
@@ -73,10 +73,10 @@ export function fromRawInput(rawInput: string): NormalizedIssue {
     priority: 1,
     url: null,
     why: null,
-    // Splitting a report into acceptance criteria is the model's whole job, so
-    // with no model there is nothing honest to put here. The reporter's text
+    // Splitting a report into separate pieces of work is the model's whole job,
+    // so with no model there is nothing honest to put here. The reporter's text
     // still reaches Todoist as the quote in the footer.
-    acceptance: [],
+    subtasks: [],
   };
 }
 
@@ -148,7 +148,7 @@ export function renderDescription(
 
   // Kept whether or not the model ran. Once the description is no longer
   // rendered as prose, this is the only record of what was actually reported,
-  // and the acceptance list above it is a machine's reading of it.
+  // and the subtask list on the task is a machine's reading of it.
   const written = context.rawInput.trim();
   const footer = written
     ? `---\n📥 ${source}\n\n**Tulisan asli:**\n${quote(written)}`

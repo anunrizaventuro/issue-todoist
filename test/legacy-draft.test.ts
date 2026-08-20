@@ -10,7 +10,7 @@ import { captureFetch, env } from './helpers.ts';
 /**
  * A draft exactly as the previous deploy left it in Durable Object storage.
  *
- * Ten issue fields, none of them `acceptance`, and no reporter handles. Written
+ * Ten issue fields and no reporter handles. Written
  * as a JSON round-trip because that is literally how it comes back, and because
  * a hand-written object would let TypeScript quietly correct the shape being
  * tested.
@@ -72,7 +72,7 @@ test('a draft from the previous deploy still reaches Todoist', async () => {
   assert.match(task.body.description, /kodepos ga keisi otomatis/, 'the quote still carries it');
 });
 
-test('a legacy draft files no child tasks rather than crashing on the missing list', async () => {
+test('a legacy draft keeps its subtask list, because the field means the same again', async () => {
   const draft = legacyDraft();
   const { sent, restore } = captureFetch();
   try {
@@ -81,26 +81,30 @@ test('a legacy draft files no child tasks rather than crashing on the missing li
     restore();
   }
 
-  // The old `subtasks` list is deliberately not migrated: it held units of work,
-  // not conditions of done, so filing it as acceptance would misrepresent it.
-  assert.equal(sent.filter((call) => call.url.endsWith('/tasks')).length, 1);
+  const children = sent.filter((call) => call.url.endsWith('/tasks') && call.body.parent_id);
+  assert.deepEqual(children.map((c) => c.body.content), ['pecah alamat jadi bertingkat']);
 });
 
-test('a legacy draft renders a review card without acceptance', () => {
+test('a legacy draft renders a review card with three buttons', () => {
   const card: any = reviewMessage(legacyDraft(), 10);
   const names = card.embeds[0].fields.map((f: any) => f.name);
 
-  assert.deepEqual(names, ['Halaman', 'Kenapa penting']);
+  assert.deepEqual(names, ['Halaman', 'Kenapa penting', 'Sub-task']);
   assert.deepEqual(
     card.components[0].components.map((b: any) => b.label),
     ['Approve', 'Edit', 'Batal'],
   );
 });
 
-test('a legacy draft opens the edit modal with an empty acceptance box', () => {
-  const modal: any = buildEditModal(legacyDraft());
-  const box = modal.data.components.find((c: any) => c.component.custom_id === 'acceptance');
+test('a draft with no subtask list at all opens the modal without crashing', () => {
+  // Belt and braces: the `?? []` guards a shape no deploy has actually written,
+  // but a draft hand-edited or half-written must not take the modal down.
+  const draft = legacyDraft();
+  delete (draft.issue as { subtasks?: string[] }).subtasks;
 
-  assert.ok(box, 'the field must be offered even when the draft predates it');
+  const modal: any = buildEditModal(draft);
+  const box = modal.data.components.find((c: any) => c.component.custom_id === 'subtasks');
+
+  assert.ok(box, 'the field must be offered even when the draft has no list');
   assert.equal(box.component.value, '');
 });

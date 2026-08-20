@@ -34,20 +34,20 @@ const filed = (over: Partial<ProcessResult> = {}): ProcessResult => ({
 const footer = (result: ProcessResult) =>
   ((resultMessage(result, context) as any).embeds[0].footer?.text ?? '') as string;
 
-test('the reply says how many acceptance criteria were created', async () => {
-  assert.match(footer(filed({ subtasksCreated: 3 })), /3 acceptance/);
+test('the reply says how many subtasks were created', async () => {
+  assert.match(footer(filed({ subtasksCreated: 3 })), /3 sub-task/);
 });
 
-test('no acceptance note is shown when the issue had none', async () => {
-  assert.ok(!footer(filed()).includes('acceptance'));
+test('no subtask note is shown when the issue had none', async () => {
+  assert.ok(!footer(filed()).includes('subtasks'));
 });
 
-test('acceptance criteria that failed to save are called out, not silently dropped', async () => {
+test('subtasks that failed to save are called out, not silently dropped', async () => {
   // The task is already filed, so the only way the reporter learns a child is
   // missing is being told here.
   const text = footer(filed({ subtasksCreated: 2, subtasksFailed: 1 }));
-  assert.match(text, /2 acceptance/);
-  assert.match(text, /1 acceptance gagal/);
+  assert.match(text, /2 sub-task/);
+  assert.match(text, /1 sub-task gagal/);
 });
 
 test('a failed submission still hands the reporter their own text back', async () => {

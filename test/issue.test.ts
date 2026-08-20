@@ -43,7 +43,7 @@ test('the description carries only what the title and child tasks cannot', () =>
     ...fromRawInput(base.rawInput),
     url: 'https://toko.example.com/keranjang',
     why: 'pelanggan batal checkout',
-    acceptance: ['Tombol checkout terlihat di mobile'],
+    subtasks: ['Tombol checkout terlihat di mobile'],
   };
   const body = renderDescription(issue, { ...base, normalized: true });
 
@@ -51,7 +51,7 @@ test('the description carries only what the title and child tasks cannot', () =>
   assert.ok(body.includes('**Kenapa penting**'));
   assert.ok(
     !body.includes('Tombol checkout terlihat di mobile'),
-    'acceptance belongs to the child tasks, not repeated here',
+    'the work list belongs to the child tasks, not repeated here',
   );
   assert.ok(body.includes('> tombol checkout ga muncul di mobile'), 'original must be preserved');
 });
@@ -59,7 +59,7 @@ test('the description carries only what the title and child tasks cannot', () =>
 test('the original text is quoted even when the model ran', () => {
   // With `problem` gone this quote is the only narrative record of what was
   // actually reported, so it must not depend on normalization succeeding.
-  const issue = { ...fromRawInput(base.rawInput), acceptance: ['apa pun'] };
+  const issue = { ...fromRawInput(base.rawInput), subtasks: ['apa pun'] };
 
   for (const normalized of [true, false]) {
     const body = renderDescription(issue, { ...base, normalized });
@@ -101,10 +101,10 @@ test('no filer credit is shown when the same person did both', () => {
   assert.ok(!body.includes('dicatat oleh'));
 });
 
-test('fromRawInput invents neither a URL nor acceptance criteria', () => {
+test('fromRawInput invents neither a URL nor subtasks', () => {
   const issue = fromRawInput('checkout ketutup navbar di https://toko.example.com/keranjang');
   assert.equal(issue.url, null, 'the raw path must not parse anything out of the text');
-  assert.deepEqual(issue.acceptance, [], 'splitting a report apart is the model\'s job alone');
+  assert.deepEqual(issue.subtasks, [], 'splitting a report apart is the model\'s job alone');
 });
 
 test('the page URL gets its own section', () => {

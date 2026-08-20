@@ -36,7 +36,7 @@ export interface EditFields {
   title: string;
   url: string | null;
   why: string | null;
-  acceptance: string[];
+  subtasks: string[];
 }
 
 export type DraftAction = 'ok' | 'edit' | 'pr' | 'x';
@@ -89,7 +89,7 @@ export function applyEdit(draft: Draft, fields: EditFields): Draft {
       // URL is a dead link in the ticket.
       url: toUrl(fields.url),
       why: fields.why,
-      acceptance: fields.acceptance,
+      subtasks: fields.subtasks,
     },
   };
 }

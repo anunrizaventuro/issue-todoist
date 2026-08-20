@@ -74,30 +74,30 @@ test('a cancelled draft cannot be filed afterwards', () => {
 
 test('editing overwrites the model output, priority aside', () => {
   const before = draft();
-  before.issue.acceptance = ['tebakan pertama model'];
+  before.issue.subtasks = ['tebakan pertama model'];
   before.issue.priority = 3;
 
   const after = applyEdit(before, {
     title: 'Kodepos tidak terisi otomatis',
     url: 'https://app.example.com/checkout',
     why: 'pelanggan batal checkout',
-    acceptance: ['Kodepos terisi otomatis dari alamat'],
+    subtasks: ['Kodepos terisi otomatis dari alamat'],
   });
 
   assert.equal(after.issue.title, 'Kodepos tidak terisi otomatis');
   assert.equal(after.issue.url, 'https://app.example.com/checkout');
   assert.equal(after.issue.why, 'pelanggan batal checkout');
-  assert.deepEqual(after.issue.acceptance, ['Kodepos terisi otomatis dari alamat']);
+  assert.deepEqual(after.issue.subtasks, ['Kodepos terisi otomatis dari alamat']);
   assert.equal(after.issue.priority, 3, 'prioritas diatur dropdown, bukan modal');
   assert.equal(after.status, 'pending');
 });
 
-test('emptying the acceptance box leaves the issue with none', () => {
+test('emptying the subtask box leaves the issue with none', () => {
   const before = draft();
-  before.issue.acceptance = ['tebakan yang salah'];
+  before.issue.subtasks = ['tebakan yang salah'];
 
-  const after = applyEdit(before, { title: 'judul', url: null, why: null, acceptance: [] });
-  assert.deepEqual(after.issue.acceptance, [], 'a deliberate clear must not be undone');
+  const after = applyEdit(before, { title: 'judul', url: null, why: null, subtasks: [] });
+  assert.deepEqual(after.issue.subtasks, [], 'a deliberate clear must not be undone');
 });
 
 test('an edit that is not a link leaves the url empty rather than dead', () => {
@@ -105,7 +105,7 @@ test('an edit that is not a link leaves the url empty rather than dead', () => {
     title: 'judul',
     url: 'halaman keranjang',
     why: null,
-    acceptance: [],
+    subtasks: [],
   });
   assert.equal(after.issue.url, null);
 });
@@ -115,7 +115,7 @@ test('an edited title too long for Todoist is clipped', () => {
     title: 'x'.repeat(150),
     url: null,
     why: null,
-    acceptance: [],
+    subtasks: [],
   });
   assert.ok(after.issue.title.length <= 100);
 });

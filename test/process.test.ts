@@ -22,7 +22,7 @@ const NORMALIZED = JSON.stringify({
   title: 'Checkout tertutup navbar di halaman produk',
   priority: 2,
   url: 'https://toko.example.com/produk',
-  acceptance: ['Benerin z-index navbar', 'Uji di iOS Safari'],
+  subtasks: ['Benerin z-index navbar', 'Uji di iOS Safari'],
 });
 
 const context = {
@@ -155,7 +155,7 @@ test('a failing provider call still files the issue, labelled for triage', async
   }
 });
 
-test('each acceptance criterion becomes a child of the created task, in order', async () => {
+test('each subtask becomes a child of the created task, in order', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {
     const result = await submit(configured, context);
@@ -170,8 +170,8 @@ test('each acceptance criterion becomes a child of the created task, in order', 
   }
 });
 
-test('a report with no acceptance criteria makes no extra Todoist calls', async () => {
-  const { sent, restore } = stubFetch(JSON.stringify({ ...JSON.parse(NORMALIZED), acceptance: [] }));
+test('a report with no subtasks makes no extra Todoist calls', async () => {
+  const { sent, restore } = stubFetch(JSON.stringify({ ...JSON.parse(NORMALIZED), subtasks: [] }));
   try {
     const result = await submit(configured, context);
 
@@ -182,7 +182,7 @@ test('a report with no acceptance criteria makes no extra Todoist calls', async 
   }
 });
 
-test('an acceptance criterion that cannot be saved does not fail the submission', async () => {
+test('an subtask that cannot be saved does not fail the submission', async () => {
   // The main task is already stored by then; discarding it because a child
   // write failed would lose the report over a detail.
   const { sent, restore } = stubFetch(NORMALIZED, true);

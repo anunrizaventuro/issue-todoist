@@ -67,7 +67,7 @@ test('everything that would be filed is shown, so nothing is approved unseen', (
         title: 'Kodepos kosong',
         why: 'pelanggan batal checkout',
         url: 'https://app.example.com/checkout',
-        acceptance: ['Alamat bertingkat tersedia', 'Kodepos terisi otomatis'],
+        subtasks: ['Alamat bertingkat tersedia', 'Kodepos terisi otomatis'],
       },
     }),
     10,

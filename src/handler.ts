@@ -17,8 +17,8 @@ import {
   ephemeral,
   MODAL_PREFIX,
   PAGE_URL_ID,
-  parseAcceptance,
-  ACCEPTANCE_ID,
+  parseSubtasks,
+  SUBTASKS_ID,
   RAW_INPUT_ID,
   TITLE_ID,
   WHY_ID,
@@ -361,7 +361,7 @@ async function handleDraftModal(
     title: findValue(components, TITLE_ID)?.trim() || draft.issue.title,
     url: findValue(components, PAGE_URL_ID)?.trim() || null,
     why: findValue(components, WHY_ID)?.trim() || null,
-    acceptance: parseAcceptance(findValue(components, ACCEPTANCE_ID)),
+    subtasks: parseSubtasks(findValue(components, SUBTASKS_ID)),
   });
 
   return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));

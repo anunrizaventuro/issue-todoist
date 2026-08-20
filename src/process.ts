@@ -97,9 +97,9 @@ export async function fileIssue(
   try {
     const task = await createTask(env.TODOIST_API_TOKEN, issue, context, images.failed, extraLabels);
     // `?? []` because a draft stored before this field existed has no list.
-    const criteria = issue.acceptance ?? [];
-    const subtasks = criteria.length
-      ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, criteria)
+    const items = issue.subtasks ?? [];
+    const subtasks = items.length
+      ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, items)
       : { created: 0, failed: 0 };
     const attached = images.uploaded.length
       ? await attachToTask(env.TODOIST_API_TOKEN, task.id, images.uploaded)

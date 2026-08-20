@@ -22,8 +22,8 @@ export const ATTACHMENTS_ID = 'attachments';
 /** custom_id of the "why this matters" field. */
 export const WHY_ID = 'why';
 
-/** custom_id of the acceptance textarea in the edit modal. */
-export const ACCEPTANCE_ID = 'acceptance';
+/** custom_id of the subtask textarea in the edit modal. */
+export const SUBTASKS_ID = 'subtasks';
 
 /** Prefix that carries the command name across the modal round-trip. */
 export const MODAL_PREFIX = 'issue:';
@@ -191,10 +191,10 @@ export function buildEditModal(draft: Draft) {
           max_length: 1000,
         }),
         textField(
-          ACCEPTANCE_ID,
-          'Acceptance (satu per baris)',
-          // Drafts stored before this field existed deserialise without it.
-          (issue.acceptance ?? []).join('\n'),
+          SUBTASKS_ID,
+          'Sub-task (satu per baris)',
+          // A draft stored before this field existed deserialises without it.
+          (issue.subtasks ?? []).join('\n'),
           TextStyleTypes.PARAGRAPH,
           { max_length: 2000 },
         ),
@@ -204,13 +204,13 @@ export function buildEditModal(draft: Draft) {
 }
 
 /**
- * Splits the acceptance textarea back into items.
+ * Splits the subtask textarea back into items.
  *
  * Blank lines are how people space out a list they are editing, so they are
  * dropped rather than becoming empty child tasks. A leading bullet is what the
  * card showed them, so it is stripped rather than filed as part of the text.
  */
-export function parseAcceptance(text: string | undefined): string[] {
+export function parseSubtasks(text: string | undefined): string[] {
   return (text ?? '')
     .split('\n')
     .map((line) => line.replace(/^\s*[-•*]\s*/, '').trim())

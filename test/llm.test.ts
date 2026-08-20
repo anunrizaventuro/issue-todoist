@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { configFromEnv, MAX_ACCEPTANCE, normalizeIssue, TIMEOUT_MS, type LlmConfig } from '../src/llm.ts';
+import { configFromEnv, MAX_SUBTASKS, normalizeIssue, TIMEOUT_MS, type LlmConfig } from '../src/llm.ts';
 import { env } from './helpers.ts';
 
 const config: LlmConfig = {
@@ -31,7 +31,7 @@ const GOOD = JSON.stringify({
   title: 'Tombol checkout tidak muncul di mobile',
   priority: 3,
   url: 'https://toko.example.com/keranjang',
-  acceptance: ['Perbaiki z-index navbar', 'Uji di iOS Safari'],
+  subtasks: ['Perbaiki z-index navbar', 'Uji di iOS Safari'],
 });
 
 test('a well-formed reply becomes a normalized issue', async () => {
@@ -40,7 +40,7 @@ test('a well-formed reply becomes a normalized issue', async () => {
   assert.ok(issue);
   assert.equal(issue.title, 'Tombol checkout tidak muncul di mobile');
   assert.equal(issue.priority, 3);
-  assert.deepEqual(issue.acceptance, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
+  assert.deepEqual(issue.subtasks, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
 });
 
 test('an API error yields null so the caller can fall back', async () => {
@@ -164,66 +164,81 @@ test('streaming is switched off explicitly, since some gateways stream by defaul
   assert.equal(seen.stream, false);
 });
 
-test('the page URL and the acceptance criterion list survive into the normalized issue', async () => {
+test('the page URL and the subtask list survive into the normalized issue', async () => {
   const issue = await normalizeIssue(config, 'tombol checkout ga muncul di hp', reply(GOOD));
 
   assert.ok(issue);
   assert.equal(issue.url, 'https://toko.example.com/keranjang');
-  assert.deepEqual(issue.acceptance, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
+  assert.deepEqual(issue.subtasks, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
 });
 
-test('a reply without acceptance yields an empty list, not a failed normalization', async () => {
-  // Most reports are a single piece of work. Missing acceptance is the norm, not
-  // a reason to sink the whole submission to the raw-text fallback.
-  const { acceptance: _drop, ...without } = JSON.parse(GOOD);
+test('a reply without subtasks yields an empty list, not a failed normalization', async () => {
+  // A report can describe one piece of work. A missing list is not a reason
+  // to sink the whole submission to the raw-text fallback.
+  const { subtasks: _drop, ...without } = JSON.parse(GOOD);
   const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify(without)));
 
-  assert.ok(issue, 'a missing acceptance field must not invalidate the issue');
-  assert.deepEqual(issue.acceptance, []);
+  assert.ok(issue, 'a missing subtasks field must not invalidate the issue');
+  assert.deepEqual(issue.subtasks, []);
 });
 
-test('blank and non-string acceptance criterion entries are dropped', async () => {
+test('blank and non-string subtask entries are dropped', async () => {
   const issue = await normalizeIssue(
     config,
     'apa saja',
-    reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: ['  Benerin navbar ', '', '   ', 42, null, { a: 1 }] })),
+    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: ['  Benerin navbar ', '', '   ', 42, null, { a: 1 }] })),
   );
 
   assert.ok(issue);
-  assert.deepEqual(issue.acceptance, ['Benerin navbar']);
+  assert.deepEqual(issue.subtasks, ['Benerin navbar']);
 });
 
-test('a acceptance field of the wrong type is treated as none', async () => {
+test('a subtasks field of the wrong type is treated as none', async () => {
   const issue = await normalizeIssue(
     config,
     'apa saja',
-    reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: 'benerin navbar' })),
+    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: 'benerin navbar' })),
   );
 
   assert.ok(issue);
-  assert.deepEqual(issue.acceptance, []);
+  assert.deepEqual(issue.subtasks, []);
 });
 
-test('the acceptance criterion list is capped so one runaway reply cannot fan out into Todoist', async () => {
-  // Each acceptance criterion costs its own API call, so an unbounded list is an unbounded
+test('the subtask list is capped so one runaway reply cannot fan out into Todoist', async () => {
+  // Each subtask costs its own API call, so an unbounded list is an unbounded
   // number of writes.
   const many = Array.from({ length: 40 }, (_, i) => `Langkah ${i}`);
-  const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: many })));
+  const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: many })));
 
   assert.ok(issue);
-  assert.ok(issue.acceptance.length <= MAX_ACCEPTANCE, `got ${issue.acceptance.length}`);
-  assert.equal(issue.acceptance[0], 'Langkah 0', 'the first ones are the ones worth keeping');
+  assert.ok(issue.subtasks.length <= MAX_SUBTASKS, `got ${issue.subtasks.length}`);
+  assert.equal(issue.subtasks[0], 'Langkah 0', 'the first ones are the ones worth keeping');
 });
 
-test('an over-long acceptance criterion is clipped to what Todoist can display', async () => {
+test('a work item keeps the whole sentence, unlike the title', async () => {
+  // Clipping at the title's 100-character ceiling used to cut items mid-word,
+  // losing the half that says what to actually do.
+  const long = `Perbaiki ${'bagian yang berantakan '.repeat(10)}di halaman pricing`;
   const issue = await normalizeIssue(
     config,
     'apa saja',
-    reply(JSON.stringify({ ...JSON.parse(GOOD), acceptance: ['y'.repeat(300)] })),
+    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: [long] })),
   );
 
   assert.ok(issue);
-  assert.ok(issue.acceptance[0]!.length <= 100, `got ${issue.acceptance[0]!.length}`);
+  assert.equal(issue.subtasks[0], long, 'a normal-length item must survive intact');
+  assert.ok(long.length > 100, 'the fixture has to be past the old ceiling to prove anything');
+});
+
+test('a runaway item is still bounded, so one reply cannot dump a wall of text', async () => {
+  const issue = await normalizeIssue(
+    config,
+    'apa saja',
+    reply(JSON.stringify({ ...JSON.parse(GOOD), subtasks: ['y'.repeat(2000)] })),
+  );
+
+  assert.ok(issue);
+  assert.equal(issue.subtasks[0]!.length, 500);
 });
 
 test('a non-URL string in the url field is discarded rather than filed as a link', async () => {

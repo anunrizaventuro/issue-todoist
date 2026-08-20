@@ -29,13 +29,23 @@ export interface LlmConfig {
 export const TIMEOUT_MS = 60_000;
 
 /**
- * Ceiling on acceptance criteria.
+ * Ceiling on subtasks.
  *
  * Each one costs its own Todoist write, so an unbounded list is an unbounded
  * number of calls made while the reporter waits. Eight is well past the point
  * where a Discord report genuinely describes separate pieces of work.
  */
-export const MAX_ACCEPTANCE = 8;
+export const MAX_SUBTASKS = 8;
+
+/**
+ * Ceiling on the length of one subtask.
+ *
+ * Our own guard, not a documented Todoist limit — the API reference states no
+ * maximum for `content`. It exists only so a model that answers with a whole
+ * paragraph cannot turn one item into a wall of text. Generous on purpose:
+ * clipping a work item mid-sentence loses the half that says what to do.
+ */
+const MAX_SUBTASK_LENGTH = 500;
 
 /**
  * Mirrors NormalizedIssue. `additionalProperties: false` plus a full `required`
@@ -55,31 +65,31 @@ const SCHEMA = {
       type: ['string', 'null'],
       description: 'URL halaman yang bermasalah bila pelapor menyebutkannya. null bila tidak ada.',
     },
-    acceptance: {
+    subtasks: {
       type: 'array',
       items: { type: 'string' },
       description:
-        'Kriteria selesai, satu kalimat per item, hasil pemecahan deskripsi pelapor.',
+        'Daftar pekerjaan, satu perintah imperatif per item, hasil pemecahan deskripsi pelapor.',
     },
   },
-  required: ['title', 'priority', 'url', 'acceptance'],
+  required: ['title', 'priority', 'url', 'subtasks'],
   additionalProperties: false,
 } as const;
 
 const SYSTEM = [
   'Kamu mengubah laporan issue berbahasa Indonesia dari Discord menjadi tiket yang bisa dikerjakan.',
   '',
-  'Tugas utamamu adalah memecah deskripsi pelapor menjadi kriteria acceptance:',
-  'kalimat-kalimat yang bisa dicentang satu per satu ketika issue-nya sudah selesai.',
+  'Tugas utamamu adalah memecah deskripsi pelapor menjadi daftar pekerjaan',
+  'yang bisa dikerjakan dan dicentang satu per satu.',
   '',
   'Aturan:',
-  '- Jangan mengarang. Semua acceptance harus berakar pada yang benar-benar ditulis pelapor.',
+  '- Jangan mengarang. Semua item harus berakar pada yang benar-benar ditulis pelapor.',
   '- Pertahankan bahasa Indonesia.',
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
-  `- acceptance: tulis tiap item sebagai keadaan akhir yang bisa diperiksa, bukan perintah kerja. Satu laporan panjang tanpa tanda baca sering memuat beberapa perubahan terpisah — pecah semuanya. Maksimal ${MAX_ACCEPTANCE} item. Array kosong hanya bila pelapor tidak menuliskan apa pun yang bisa diperiksa.`,
-  '  Contoh: "modal create order ga muncul, perlu notif kalo error, field email wajib, sama tombol cancel"',
-  '  -> ["Modal create order muncul dengan normal", "Error saat modal gagal muncul ditampilkan lewat notifikasi", "Field email wajib diisi pada modal create order", "Tombol cancel tersedia dan menutup modal"]',
+  `- subtasks: tulis tiap item sebagai perintah kerja imperatif — "Tambahkan...", "Perbaiki...", "Ganti...", "Terapkan...". Ini pekerjaan yang BELUM dikerjakan, jadi jangan pernah menulisnya sebagai keadaan yang sudah selesai ("sudah diperbaiki", "sudah terlihat") maupun sebagai kriteria selesai ("tersedia", "muncul dengan normal"). Satu laporan panjang tanpa tanda baca sering memuat beberapa pekerjaan terpisah — pecah semuanya. Maksimal ${MAX_SUBTASKS} item. Array kosong hanya bila pelapor tidak menuliskan pekerjaan apa pun.`,
+  '  Contoh: "hero ganti layout ajangan terllau ai slop, tambahkan menu faq dan blog, warna primary belum keliahtan masih terlalu flat, kalau sudah ada warna primary terpakan disemuanya, beri cta di section setelah produk atau fitur, pricing juga responsivenaya berantakan, pricing dekstop kasih rekomendasi mana yg paling oke"',
+  '  -> ["Ganti layout hero agar tidak terlihat seperti hasil AI", "Tambahkan menu FAQ dan blog", "Perkuat warna primary yang masih terlalu flat", "Terapkan warna primary pada seluruh bagian", "Beri CTA pada section setelah produk atau fitur", "Perbaiki responsivitas tampilan pricing", "Tandai paket rekomendasi pada pricing desktop"]',
   '- url diisi hanya dengan alamat yang benar-benar ditulis pelapor (diawali http:// atau https://). Jangan menyusun URL sendiri dari nama halaman.',
   '',
   // Repeated here because `response_format` is honoured unevenly across
@@ -220,7 +230,7 @@ function toIssue(text: string): NormalizedIssue | null {
     url: toUrl(str(value.url)),
     // Supplied by the reporter, never by the model.
     why: null,
-    acceptance: acceptance(value.acceptance),
+    subtasks: subtasks(value.subtasks),
   };
 }
 
@@ -243,17 +253,19 @@ function str(value: unknown): string | null {
 }
 
 /**
- * Anything that is not a usable list becomes no acceptance criteria at all.
+ * Anything that is not a usable list becomes no subtasks at all.
  *
  * A malformed list costs far less than failing the whole normalization: the
  * task still lands, carrying the reporter's own words in its description.
  */
-function acceptance(value: unknown): string[] {
+function subtasks(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
   return value
     .map(str)
     .filter((item): item is string => item !== null)
-    .slice(0, MAX_ACCEPTANCE)
-    .map(clipTitle);
+    .slice(0, MAX_SUBTASKS)
+    // Not clipTitle: that ceiling is for the parent task's one-line title, and
+    // a work item cut at 100 characters loses the half that says what to do.
+    .map((item) => (item.length > MAX_SUBTASK_LENGTH ? item.slice(0, MAX_SUBTASK_LENGTH) : item));
 }

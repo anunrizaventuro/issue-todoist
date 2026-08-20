@@ -103,7 +103,7 @@ test('Edit opens a modal prefilled from the draft', async () => {
   assert.equal(body.type, RESPONSE_MODAL);
   assert.equal(body.data.custom_id, `dm:edit:${ID}`);
   const ids = body.data.components.map((c: any) => c.component.custom_id);
-  assert.deepEqual(ids, ['title', 'page_url', 'why', 'acceptance']);
+  assert.deepEqual(ids, ['title', 'page_url', 'why', 'subtasks']);
   assert.ok(body.data.components.length <= 5, 'Discord caps a modal at 5 components');
   assert.equal(body.data.components[0].component.value, 'Kodepos kosong');
 });
@@ -135,7 +135,7 @@ test('submitting the edit updates the card inline, without calling the model', a
         label('title', 'Kodepos tidak terisi otomatis'),
         label('page_url', 'https://app.example.com/checkout'),
         label('why', 'pelanggan batal checkout'),
-        label('acceptance', 'Kodepos terisi otomatis\n\n- Alamat bertingkat tersedia'),
+        label('subtasks', 'Kodepos terisi otomatis\n\n- Alamat bertingkat tersedia'),
       ]),
       env,
     );
@@ -224,7 +224,7 @@ test('a draft button from another guild never reaches the draft store', async ()
 
 test('every field the card can correct fits in the one modal', () => {
   // The whole reason the second modal could go away.
-  const fields = ['title', 'page_url', 'why', 'acceptance'];
+  const fields = ['title', 'page_url', 'why', 'subtasks'];
   assert.equal(new Set(fields).size, fields.length);
   assert.ok(fields.length <= 5, 'Discord caps a modal at 5 components');
 });

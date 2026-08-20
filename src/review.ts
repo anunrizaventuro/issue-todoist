@@ -30,10 +30,10 @@ export function reviewMessage(draft: Draft, minutes: number): Record<string, unk
   if (context.attachments.length > 0) {
     fields.push({ name: 'Gambar', value: `${context.attachments.length} file`, inline: true });
   }
-  // Drafts stored before this field existed deserialise without it.
-  const acceptance = issue.acceptance ?? [];
-  if (acceptance.length > 0) {
-    fields.push({ name: 'Acceptance', value: acceptance.map((a) => `• ${a}`).join('\n') });
+  // A draft stored before this field existed deserialises without it.
+  const subtasks = issue.subtasks ?? [];
+  if (subtasks.length > 0) {
+    fields.push({ name: 'Sub-task', value: subtasks.map((s) => `• ${s}`).join('\n') });
   }
 
   return {
