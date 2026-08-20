@@ -16,3 +16,15 @@ compatibility_flags = ["nodejs_compat"]
 ALLOWED_GUILD_IDS = "1392070580534251621"
 LLM_BASE_URL = ""
 LLM_MODEL = ""
+# Minutes before an untouched draft files itself. Must stay under 15: the Discord
+# interaction token expires then, and the alarm could no longer replace the draft
+# card with the result.
+REVIEW_TIMEOUT_MINUTES = "10"
+
+[[durable_objects.bindings]]
+name = "DRAFTS"
+class_name = "IssueDraft"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["IssueDraft"]

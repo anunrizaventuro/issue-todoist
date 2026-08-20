@@ -17,6 +17,12 @@ export const env: Env = {
   LLM_API_KEY: '',
   TODOIST_API_TOKEN: 'unused',
   ALLOWED_GUILD_IDS: '',
+  // Replaced per test by anything exercising the draft flow.
+  DRAFTS: {
+    idFromName: () => ({}),
+    get: () => { throw new Error('no draft binding in this test'); },
+  },
+  REVIEW_TIMEOUT_MINUTES: '10',
 };
 
 export const noopWaitUntil = () => {};
@@ -63,4 +69,25 @@ export function captureFetch(response: unknown = { id: '42' }) {
   }) as any;
 
   return { sent, restore: () => { globalThis.fetch = real; } };
+}
+
+/**
+ * Stands in for Durable Object storage.
+ *
+ * Only the four methods DraftCore uses, so the fake cannot drift far from what
+ * the real storage does.
+ */
+export function fakeState() {
+  const store = new Map<string, unknown>();
+  let alarm: number | null = null;
+
+  return {
+    alarmAt: () => alarm,
+    storage: {
+      get: async <T,>(key: string) => store.get(key) as T | undefined,
+      put: async (key: string, value: unknown) => void store.set(key, value),
+      setAlarm: async (at: number) => void (alarm = at),
+      deleteAlarm: async () => void (alarm = null),
+    },
+  };
 }

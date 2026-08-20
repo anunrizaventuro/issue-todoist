@@ -1,4 +1,5 @@
 import { clipTitle, toUrl, type IssueContext, type NormalizedIssue } from './issue.ts';
+import type { ProcessResult } from './process.ts';
 
 /**
  * A submission waiting for its reporter to approve it.
@@ -101,4 +102,41 @@ export function applyPriority(draft: Draft, priority: number): Draft {
 /** Ephemeral messages are private already; this guards a leaked custom_id. */
 export function isReporter(draft: Draft, userId: string | undefined): boolean {
   return userId !== undefined && userId === draft.reporterId;
+}
+
+/**
+ * What the handler needs from a draft object.
+ *
+ * Declared structurally so handler.ts stays importable from plain Node tests —
+ * the real implementation sits behind a Workers-only import.
+ */
+export interface DraftStub {
+  start(draft: Draft, windowMs: number): Promise<void>;
+  read(): Promise<Draft | null>;
+  edit(fields: EditFields): Promise<Draft | null>;
+  priority(value: number): Promise<Draft | null>;
+  approve(): Promise<ProcessResult | 'closed'>;
+  cancel(): Promise<Draft | null>;
+}
+
+export interface DraftBinding {
+  idFromName(name: string): unknown;
+  get(id: unknown): DraftStub;
+}
+
+/** One object per draft, named by its id so a button click can find it again. */
+export function openDraft(env: { DRAFTS: DraftBinding }, id: string): DraftStub {
+  return env.DRAFTS.get(env.DRAFTS.idFromName(id));
+}
+
+/**
+ * Minutes before an untouched draft files itself.
+ *
+ * Never past 14: the Discord interaction token dies at 15 minutes, and after
+ * that the alarm could no longer replace the draft card with the result —
+ * leaving the reporter looking at buttons that no longer do anything.
+ */
+export function reviewTimeoutMinutes(env: { REVIEW_TIMEOUT_MINUTES?: string }): number {
+  const parsed = Number(env.REVIEW_TIMEOUT_MINUTES);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 14) : 10;
 }
