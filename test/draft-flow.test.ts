@@ -9,7 +9,6 @@ import { captureFetch, env as baseEnv, memoryDrafts, signed } from './helpers.ts
 const MESSAGE_COMPONENT = 3;
 const MODAL_SUBMIT = 5;
 const RESPONSE_MESSAGE = 4;
-const RESPONSE_DEFERRED_UPDATE = 6;
 const RESPONSE_UPDATE = 7;
 const RESPONSE_MODAL = 9;
 const ID = '0d1b2c3d-4e5f-6071-8293-a4b5c6d7e8f9';
@@ -81,16 +80,34 @@ async function call(payload: unknown, env: any) {
   return { res, body: (await res.json()) as any, deferred };
 }
 
-test('Approve acknowledges fast and files in the background', async () => {
+test('Approve replaces the card immediately, then files in the background', async () => {
   const outbound = captureFetch();
   try {
     const { env } = withDraft(pending());
     const { body, deferred } = await call(click('ok'), env);
 
-    // Todoist is far too slow for Discord's 3-second budget.
-    assert.equal(body.type, RESPONSE_DEFERRED_UPDATE);
+    // Not a deferred acknowledgement: Discord renders that as no change at all,
+    // which is what made people click Approve a second time.
+    assert.equal(body.type, RESPONSE_UPDATE);
+    assert.match(JSON.stringify(body.data), /[Mm]enyimpan/, 'the card must say it is working');
+
+    // Todoist is far too slow for Discord's 3-second budget, so the real result
+    // still arrives by editing this message afterwards.
     await Promise.all(deferred);
     assert.ok(outbound.sent.some((r) => r.url.includes('discord')), 'the card must be replaced');
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('the saving card offers no buttons, so a second click is impossible', async () => {
+  const outbound = captureFetch();
+  try {
+    const { env } = withDraft(pending());
+    const { body, deferred } = await call(click('ok'), env);
+    await Promise.all(deferred);
+
+    assert.deepEqual(body.data.components, [], 'live buttons invite the double click');
   } finally {
     outbound.restore();
   }

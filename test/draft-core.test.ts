@@ -199,3 +199,24 @@ test('an alarm Todoist rejects retries instead of dropping the report', async ()
     globalThis.fetch = real;
   }
 });
+
+test('clicking Approve twice files exactly one Todoist task', async () => {
+  // The card gives no sign it is working, so a second click is the natural
+  // thing to do. It must cost nothing.
+  const outbound = captureFetch();
+  try {
+    const { obj } = core();
+    await obj.start(newDraft(), WINDOW);
+
+    const first = await obj.approve();
+    const second = await obj.approve();
+
+    assert.notEqual(first, 'closed', 'the first click is the one that files');
+    assert.equal(second, 'closed', 'the second must bounce off the claim');
+
+    const created = outbound.sent.filter((call) => call.url.endsWith('/tasks'));
+    assert.equal(created.length, 1, `Todoist was written ${created.length} times`);
+  } finally {
+    outbound.restore();
+  }
+});

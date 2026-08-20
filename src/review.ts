@@ -78,6 +78,29 @@ export function reviewMessage(draft: Draft, minutes: number): Record<string, unk
   };
 }
 
+/**
+ * Shown the instant Approve is pressed, while Todoist is being written.
+ *
+ * Discord renders a deferred acknowledgement as no change whatsoever, so the
+ * card used to sit there with its buttons live and nothing to say it was
+ * working — and people pressed Approve again. Replacing the card outright is
+ * what makes the wait visible, and dropping the buttons is what makes the
+ * second press impossible rather than merely harmless.
+ */
+export function savingMessage(draft: Draft): Record<string, unknown> {
+  return {
+    embeds: [
+      {
+        title: `⏳ Menyimpan ke Todoist…`,
+        description: truncate(draft.issue.title, 3800),
+        color: GREY,
+      },
+    ],
+    components: [],
+    flags: InteractionResponseFlags.EPHEMERAL,
+  };
+}
+
 /** Shown when a click lands on a draft that is already finished. */
 export function closedMessage(draft: Draft): Record<string, unknown> {
   const cancelled = draft.status === 'cancelled';

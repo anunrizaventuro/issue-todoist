@@ -50,7 +50,7 @@ import {
 import type { IssueContext } from './issue.ts';
 import { fileIssue, normalizeSubmission } from './process.ts';
 import { resultMessage } from './result.ts';
-import { cancelledMessage, closedMessage, reviewMessage } from './review.ts';
+import { cancelledMessage, closedMessage, reviewMessage, savingMessage } from './review.ts';
 import type { Env } from './env.ts';
 
 /** Schedules background work that must outlive the response (Workers: ctx.waitUntil). */
@@ -301,9 +301,10 @@ async function handleDraftComponent(
 
   switch (ref.action) {
     case 'ok':
-      // Todoist is far too slow for the 3-second budget.
+      // Todoist is far too slow for the 3-second budget, so the result arrives
+      // later by editing this same message.
       waitUntil(approveDraft(interaction, stub));
-      return json({ type: InteractionResponseType.DEFERRED_UPDATE_MESSAGE });
+      return json(update(savingMessage(draft)));
 
     case 'edit':
       return json(buildEditModal(draft));
@@ -325,7 +326,8 @@ async function approveDraft(interaction: Interaction, stub: DraftStub): Promise<
   const draft = await stub.read();
 
   if (!draft) {
-    // Nothing left to describe, but the reporter is still watching a spinner.
+    // Nothing left to describe, but the reporter is still watching the
+    // saving card, which has no buttons to get them out of it.
     await editOriginalResponse(interaction, {
       content: 'Draft ini tidak ditemukan lagi.',
       components: [],
