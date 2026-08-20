@@ -115,3 +115,37 @@ test('no Halaman heading is left behind when there is no URL', () => {
   const body = renderDescription(fromRawInput(base.rawInput), { ...base, normalized: true });
   assert.ok(!body.includes('**Halaman**'));
 });
+
+test('images already in Todoist are not repeated as dying Discord links', () => {
+  const attachment = {
+    id: '1',
+    filename: 'shot.png',
+    size: 10,
+    url: 'https://cdn.discordapp.com/attachments/1/2/shot.png',
+    proxy_url: 'https://media.discordapp.net/attachments/1/2/shot.png',
+    content_type: 'image/png',
+  };
+  const context = { ...base, attachments: [attachment], normalized: true };
+  const issue = fromRawInput('kodepos kosong');
+
+  const uploaded = renderDescription(issue, context, []);
+  assert.ok(!uploaded.includes('cdn.discordapp.com'), 'an image Todoist holds needs no link');
+  assert.ok(!uploaded.includes('kedaluwarsa'));
+
+  const stranded = renderDescription(issue, context, [attachment]);
+  assert.ok(stranded.includes('cdn.discordapp.com'), 'a failed upload must still leave a link');
+  assert.ok(stranded.includes('kedaluwarsa'));
+});
+
+test('by default every attachment is still written as a link', () => {
+  // Guards the old call sites: omitting the argument must not silently drop images.
+  const attachment = {
+    id: '1', filename: 'shot.png', size: 10,
+    url: 'https://cdn.discordapp.com/attachments/1/2/shot.png',
+    proxy_url: 'x', content_type: 'image/png',
+  };
+  const body = renderDescription(fromRawInput('kodepos kosong'), {
+    ...base, attachments: [attachment], normalized: true,
+  });
+  assert.ok(body.includes('cdn.discordapp.com'));
+});

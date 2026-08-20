@@ -1,6 +1,12 @@
 import { configFromEnv, normalizeIssue } from './llm.ts';
 import { fromRawInput, toUrl, type IssueContext, type NormalizedIssue } from './issue.ts';
-import { createSubtasks, createTask, type CreatedTask } from './todoist.ts';
+import {
+  attachToTask,
+  createSubtasks,
+  createTask,
+  uploadAttachments,
+  type CreatedTask,
+} from './todoist.ts';
 import type { Env } from './env.ts';
 
 export interface ProcessResult {
@@ -13,6 +19,10 @@ export interface ProcessResult {
   subtasksCreated: number;
   /** Non-zero means the task exists but is missing some of its children. */
   subtasksFailed: number;
+  /** Images now held by Todoist and shown on the task itself. */
+  attachmentsUploaded: number;
+  /** Images that stayed behind as Discord links, expiry warning and all. */
+  attachmentsFailed: number;
 }
 
 /**
@@ -36,11 +46,21 @@ export async function processSubmission(
   const issue: NormalizedIssue = { ...base, url: toUrl(context.pageUrl) ?? base.url };
   const fullContext: IssueContext = { ...context, normalized: normalized !== null };
 
+  // Uploaded before the task is created, not after: the description decides
+  // whether to write a Discord link based on what Todoist already holds, and a
+  // Discord CDN link in a ticket is dead within about 24 hours.
+  const images = context.attachments.length
+    ? await uploadAttachments(env.TODOIST_API_TOKEN, context.attachments)
+    : { uploaded: [], failed: [] };
+
   try {
-    const task = await createTask(env.TODOIST_API_TOKEN, issue, fullContext);
+    const task = await createTask(env.TODOIST_API_TOKEN, issue, fullContext, images.failed);
     const subtasks = issue.subtasks.length
       ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, issue.subtasks)
       : { created: 0, failed: 0 };
+    const attached = images.uploaded.length
+      ? await attachToTask(env.TODOIST_API_TOKEN, task.id, images.uploaded)
+      : 0;
 
     return {
       issue,
@@ -49,6 +69,9 @@ export async function processSubmission(
       normalized: fullContext.normalized,
       subtasksCreated: subtasks.created,
       subtasksFailed: subtasks.failed,
+      attachmentsUploaded: attached,
+      // An upload that landed but could not be commented is still a missing image.
+      attachmentsFailed: images.failed.length + (images.uploaded.length - attached),
     };
   } catch (cause) {
     console.error('Todoist create failed', cause);
@@ -59,6 +82,8 @@ export async function processSubmission(
       normalized: fullContext.normalized,
       subtasksCreated: 0,
       subtasksFailed: 0,
+      attachmentsUploaded: 0,
+      attachmentsFailed: context.attachments.length,
     };
   }
 }

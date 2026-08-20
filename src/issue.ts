@@ -106,7 +106,12 @@ export function clipTitle(line: string): string {
  * Empty sections are omitted entirely — a template full of "Expected: -" is
  * noise, and this is meant to stay lighter than a Jira ticket.
  */
-export function renderDescription(issue: NormalizedIssue, context: IssueContext): string {
+export function renderDescription(
+  issue: NormalizedIssue,
+  context: IssueContext,
+  /** Images that never reached Todoist. Defaults to all of them. */
+  unattached: DiscordAttachment[] = context.attachments,
+): string {
   const blocks: string[] = [];
 
   if (context.normalized) {
@@ -126,8 +131,10 @@ export function renderDescription(issue: NormalizedIssue, context: IssueContext)
     blocks.push(`**Perlu diperjelas**\n${issue.clarification}`);
   }
 
-  if (context.attachments.length > 0) {
-    const links = context.attachments
+  // Anything Todoist holds is already shown on the task as a real attachment;
+  // repeating it here would only add a URL that dies within a day.
+  if (unattached.length > 0) {
+    const links = unattached
       .map((a) => `- [${a.filename}](${a.url})`)
       .join('\n');
     blocks.push(`**Gambar**\n${links}\n\n⚠️ Link Discord kedaluwarsa ~24 jam.`);

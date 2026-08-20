@@ -41,8 +41,12 @@ export function resultMessage(
     // The task is already filed, so this is the only place the reporter finds out.
     notes.push(`⚠️ ${result.subtasksFailed} sub-task gagal dibuat`);
   }
-  if (context.attachments.length > 0) {
-    notes.push(`📎 ${context.attachments.length} gambar (link Discord kedaluwarsa ~24 jam)`);
+  if (result.attachmentsUploaded > 0) {
+    notes.push(`🖼️ ${result.attachmentsUploaded} gambar terlampir`);
+  }
+  if (result.attachmentsFailed > 0) {
+    // The task is already filed, so this is the only place the reporter finds out.
+    notes.push(`⚠️ ${result.attachmentsFailed} gambar gagal diunggah (maks 5 MB)`);
   }
 
   // Filed either way, so this is a warning rather than a failure — but saying

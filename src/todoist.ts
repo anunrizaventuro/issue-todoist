@@ -23,6 +23,8 @@ export async function createTask(
   token: string,
   issue: NormalizedIssue,
   context: IssueContext,
+  /** Images that could not be uploaded, so the description still links them. */
+  unattached: DiscordAttachment[] = context.attachments,
 ): Promise<CreatedTask> {
   const command: CommandName = context.command;
   const labels = [...COMMANDS[command].labels];
@@ -36,7 +38,7 @@ export async function createTask(
     },
     body: JSON.stringify({
       content: issue.title,
-      description: renderDescription(issue, context),
+      description: renderDescription(issue, context, unattached),
       project_id: COMMANDS[command].projectId,
       labels,
       priority: issue.priority,

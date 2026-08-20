@@ -239,3 +239,117 @@ test('a form URL that is not a link is dropped rather than filed', async () => {
     restore();
   }
 });
+
+/** Discord, Todoist uploads, tasks and comments each answered separately. */
+function stubUploads(uploadStatus = 200) {
+  const order: string[] = [];
+  const real = globalThis.fetch;
+
+  globalThis.fetch = (async (input: any, init: any) => {
+    const url = String(input?.url ?? input);
+    const body = init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : null;
+
+    if (url.includes('cdn.discordapp')) {
+      order.push('download');
+      return new Response(new Uint8Array([1, 2, 3]));
+    }
+    if (url.includes('/uploads')) {
+      order.push('upload');
+      return uploadStatus === 200
+        ? new Response(
+            JSON.stringify({
+              file_name: 'shot.png', file_size: 3, file_type: 'image/png',
+              file_url: 'https://files.todoist.com/x/as/file.png',
+              resource_type: 'image', upload_state: 'completed',
+            }),
+            { headers: { 'content-type': 'application/json' } },
+          )
+        : new Response('too big', { status: uploadStatus });
+    }
+    if (url.includes('/comments')) {
+      order.push('comment');
+      return new Response('{"id":"1"}', { headers: { 'content-type': 'application/json' } });
+    }
+    order.push('task');
+    return new Response(JSON.stringify({ id: body?.parent_id ? '43' : '42' }), {
+      headers: { 'content-type': 'application/json' },
+    });
+  }) as any;
+
+  return { order, restore: () => { globalThis.fetch = real; } };
+}
+
+const withImage = {
+  ...context,
+  attachments: [{
+    id: '1', filename: 'shot.png', size: 3,
+    url: 'https://cdn.discordapp.com/attachments/1/2/shot.png',
+    proxy_url: 'x', content_type: 'image/png',
+  }],
+};
+
+test('images are uploaded before the task, then attached to it', async () => {
+  const { order, restore } = stubUploads();
+  try {
+    const result = await processSubmission(env, withImage);
+
+    // The description can only leave out the Discord link if the upload already
+    // happened by the time the task is written.
+    assert.deepEqual(order, ['download', 'upload', 'task', 'comment']);
+    assert.equal(result.attachmentsUploaded, 1);
+    assert.equal(result.attachmentsFailed, 0);
+  } finally {
+    restore();
+  }
+});
+
+test('an image Todoist accepted is not also filed as a Discord link', async () => {
+  const { restore } = stubUploads();
+  const sent: string[] = [];
+  const real = globalThis.fetch;
+  globalThis.fetch = (async (input: any, init: any) => {
+    const url = String(input?.url ?? input);
+    if (url.includes('todoist') && init?.body && typeof init.body === 'string' && !url.includes('/uploads')) {
+      sent.push(init.body);
+    }
+    return real(input, init);
+  }) as any;
+
+  try {
+    await processSubmission(env, withImage);
+    const task = sent.map((b) => JSON.parse(b)).find((b) => b.content && !b.attachment)!;
+    assert.ok(!task.description.includes('cdn.discordapp.com'));
+    assert.ok(!task.description.includes('kedaluwarsa'));
+  } finally {
+    globalThis.fetch = real;
+    restore();
+  }
+});
+
+test('an image too big for the plan leaves the report intact', async () => {
+  const { order, restore } = stubUploads();
+  try {
+    const result = await processSubmission(env, {
+      ...withImage,
+      attachments: [{ ...withImage.attachments[0]!, size: 6 * 1024 * 1024 }],
+    });
+
+    assert.ok(result.task, 'the report must survive an image that cannot be uploaded');
+    assert.equal(result.attachmentsUploaded, 0);
+    assert.equal(result.attachmentsFailed, 1);
+    assert.ok(!order.includes('download'), 'no point downloading what cannot be uploaded');
+  } finally {
+    restore();
+  }
+});
+
+test('a rejected upload still files the task, with the Discord link kept', async () => {
+  const { restore } = stubUploads(413);
+  try {
+    const result = await processSubmission(env, withImage);
+    assert.ok(result.task);
+    assert.equal(result.attachmentsFailed, 1);
+  } finally {
+    restore();
+  }
+});

@@ -22,6 +22,8 @@ const filed = (over: Partial<ProcessResult> = {}): ProcessResult => ({
   normalized: true,
   subtasksCreated: 0,
   subtasksFailed: 0,
+  attachmentsUploaded: 0,
+  attachmentsFailed: 0,
   ...over,
 });
 
@@ -69,4 +71,20 @@ test('an un-normalized report is still filed, with its Todoist link intact', asy
 test('a normalized report keeps the plain success reply', async () => {
   const body = resultMessage(filed(), context) as any;
   assert.match(body.embeds[0].title, /✅/);
+});
+
+test('images that reached Todoist are reported as attached', async () => {
+  assert.match(footer(filed({ attachmentsUploaded: 2 })), /2 gambar terlampir/);
+});
+
+test('images that never made it are called out with the reason', async () => {
+  // The task is already filed, so this is the only place the reporter finds out.
+  const text = footer(filed({ attachmentsUploaded: 1, attachmentsFailed: 1 }));
+  assert.match(text, /1 gambar terlampir/);
+  assert.match(text, /1 gambar gagal diunggah/);
+  assert.match(text, /5 MB/);
+});
+
+test('a report with no images says nothing about images', async () => {
+  assert.ok(!footer(filed()).includes('gambar'));
 });
