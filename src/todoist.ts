@@ -10,6 +10,50 @@ export const TRIAGE_LABEL = 'needs-triage';
 /** Applied when nobody approved the draft in time and the alarm filed it. */
 export const REVIEW_LABEL = 'needs-review';
 
+/** Whose problem it is. */
+export const REPORTER_PREFIX = 'dari-';
+
+/** Who bothered to write it down, when that is someone else. */
+export const FILER_PREFIX = 'dicatat-';
+
+/** Todoist rejects a label name longer than this. */
+const MAX_LABEL_LENGTH = 128;
+
+/**
+ * Turns a Discord handle into a label Todoist can filter on.
+ *
+ * Todoist's filter syntax is `@label`, which breaks on a space, so anything
+ * outside the modern handle charset collapses to a hyphen. Returns null when
+ * nothing usable survives — see `reporterLabels` for why that beats a fallback.
+ */
+function slug(prefix: string, username: string | null | undefined): string | null {
+  const cleaned = (username ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return cleaned ? `${prefix}${cleaned}`.slice(0, MAX_LABEL_LENGTH) : null;
+}
+
+/**
+ * Labels naming the people behind a report, so Todoist can filter by them.
+ *
+ * The handle rather than the display name, because a display name changes and
+ * would split one person's history in two. No handle means no label: a
+ * `dari-unknown` bucket would gather unrelated reporters into one filter, which
+ * is worse than the label simply being absent.
+ *
+ * These are shared labels — Todoist creates them on demand and shows them grey,
+ * and they disappear once no active task carries them.
+ */
+export function reporterLabels(context: IssueContext): string[] {
+  return [
+    slug(REPORTER_PREFIX, context.authorUsername),
+    slug(FILER_PREFIX, context.filedBy ? context.filedByUsername : null),
+  ].filter((label): label is string => label !== null);
+}
+
 export interface CreatedTask {
   id: string;
   url: string;
@@ -31,7 +75,8 @@ export async function createTask(
   extraLabels: string[] = [],
 ): Promise<CreatedTask> {
   const command: CommandName = context.command;
-  const labels = [...COMMANDS[command].labels, ...extraLabels];
+  // Built here rather than passed in, so no caller can file a task without them.
+  const labels = [...COMMANDS[command].labels, ...extraLabels, ...reporterLabels(context)];
   if (!context.normalized) labels.push(TRIAGE_LABEL);
 
   const res = await fetch(`${API}/tasks`, {

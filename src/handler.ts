@@ -44,6 +44,8 @@ import {
   isGuildAllowed,
   messageLink,
   sourceLinkOf,
+  usernameOf,
+  usernameOfUser,
   targetMessageOf,
   userIdOf,
   type Interaction,
@@ -213,7 +215,10 @@ function handleMessageCommand(
   waitUntil(
     createDraftAndReview(interaction, env, MESSAGE_COMMAND_TARGET, rawInput, {
       author: writer,
+      authorUsername: usernameOfUser(message.author),
       filedBy: clicker === writer ? null : clicker,
+      // Same condition as filedBy, so the two never disagree about who acted.
+      filedByUsername: clicker === writer ? null : usernameOf(interaction),
       sourceLink: messageLink(interaction, message.id),
       attachments: message.attachments ?? [],
     }),
@@ -238,7 +243,9 @@ async function createDraftAndReview(
     command,
     rawInput,
     author: authorOf(interaction),
+    authorUsername: usernameOf(interaction),
     filedBy: null,
+    filedByUsername: null,
     sourceLink: sourceLinkOf(interaction),
     // Only the modal has these fields; the context menu leaves them to the model.
     typedTitle: null,

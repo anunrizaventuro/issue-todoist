@@ -110,6 +110,18 @@ export function authorOf(interaction: Interaction): string {
   return user?.global_name || user?.username || 'unknown';
 }
 
+/**
+ * Discord handle of whoever triggered the interaction.
+ *
+ * Deliberately not falling back to `global_name` or `'unknown'` the way
+ * `authorOf` does: this feeds a label, and a display name can be changed at any
+ * time, which would silently split one person's history across two labels.
+ * Null when Discord sent no handle, so the caller can omit the label entirely.
+ */
+export function usernameOf(interaction: Interaction): string | null {
+  return usernameOfUser(interaction.member?.user ?? interaction.user);
+}
+
 /** Link back to the channel the issue came from. Modals have no message to cite. */
 export function sourceLinkOf(interaction: Interaction): string | null {
   const { guild_id: guild, channel_id: channel } = interaction;
@@ -130,4 +142,9 @@ export function messageLink(interaction: Interaction, messageId: string): string
 
 export function displayName(user: DiscordMessage['author']): string {
   return user?.global_name || user?.username || 'unknown';
+}
+
+/** Same rule as `usernameOf`, for the author of a message rather than a clicker. */
+export function usernameOfUser(user: DiscordMessage['author']): string | null {
+  return user?.username || null;
 }

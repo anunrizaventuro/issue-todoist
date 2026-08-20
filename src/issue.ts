@@ -37,8 +37,16 @@ export interface IssueContext {
   command: CommandName;
   rawInput: string;
   author: string;
+  /**
+   * Discord handle behind `author`, used only to build the reporter label.
+   * Null when Discord sent none. Absent entirely on drafts stored before this
+   * field existed, so readers must tolerate `undefined` too.
+   */
+  authorUsername: string | null;
   /** Set only when someone filed another person's message. */
   filedBy: string | null;
+  /** Discord handle behind `filedBy`, on the same terms as `authorUsername`. */
+  filedByUsername: string | null;
   sourceLink: string | null;
   /** Title typed into the form. Outranks the one the model produced. */
   typedTitle: string | null;
