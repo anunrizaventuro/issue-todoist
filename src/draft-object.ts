@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { DraftCore, type DraftStorage } from './draft-core.ts';
-import type { Draft, EditFields } from './draft.ts';
+import type { AiFields, Draft, EditFields } from './draft.ts';
+import type { NormalizedIssue } from './issue.ts';
 import type { ProcessResult } from './process.ts';
 import type { Env } from './env.ts';
 
@@ -25,6 +26,14 @@ export class IssueDraft extends DurableObject<Env> {
 
   edit(fields: EditFields): Promise<Draft | null> {
     return this.core.edit(fields);
+  }
+
+  editAi(fields: AiFields): Promise<Draft | null> {
+    return this.core.editAi(fields);
+  }
+
+  rewrite(issue: NormalizedIssue, rawInput: string): Promise<Draft | null> {
+    return this.core.rewrite(issue, rawInput);
   }
 
   priority(value: number): Promise<Draft | null> {

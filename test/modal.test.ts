@@ -45,16 +45,23 @@ test('every field sits inside a Label, not an Action Row', async () => {
   // Action Rows are deprecated for modal inputs; Discord expects a Label.
   const components = await modalComponents();
 
-  assert.equal(components.length, 4);
-  assert.ok(components.length <= 5, 'Discord caps a modal at 5 components');
+  assert.equal(components.length, 5);
+  assert.ok(components.length <= 5, 'Discord caps a modal at 5 components — this is the ceiling');
   for (const component of components) {
     assert.equal(component.type, COMPONENT_LABEL);
   }
 });
 
-test('the form asks for title, url, description and images in that order', async () => {
+test('the form asks for title, url, description, why and images in that order', async () => {
   const ids = (await modalComponents()).map((c: any) => c.component.custom_id);
-  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'attachments']);
+  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'why', 'attachments']);
+});
+
+test('the title is the only field the reporter must fill in', async () => {
+  const required = (await modalComponents())
+    .filter((c: any) => c.component.required === true)
+    .map((c: any) => c.component.custom_id);
+  assert.deepEqual(required, ['title']);
 });
 
 test('the title is required and capped where Todoist truncates', async () => {
@@ -65,14 +72,22 @@ test('the title is required and capped where Todoist truncates', async () => {
   assert.equal(title.component.max_length, 100, 'clipTitle enforces the same ceiling');
 });
 
-test('the text field is a required paragraph with a length floor', async () => {
+test('the description is an optional paragraph', async () => {
+  // A one-line report is still a report; a required field people have nothing
+  // to put in just gets filled with noise.
   const text = await field('raw_input');
   assert.equal(text.component.type, COMPONENT_TEXT_INPUT);
   assert.equal(text.component.style, STYLE_PARAGRAPH);
-  assert.equal(text.component.custom_id, 'raw_input');
-  assert.equal(text.component.required, true);
-  assert.equal(text.component.min_length, 10);
+  assert.equal(text.component.required, false);
+  assert.equal(text.component.min_length, undefined, 'a floor would make it required in practice');
   assert.equal(text.component.max_length, 4000);
+});
+
+test('the why field is an optional paragraph', async () => {
+  const why = await field('why');
+  assert.equal(why.component.style, STYLE_PARAGRAPH);
+  assert.equal(why.component.required, false);
+  assert.equal(why.component.max_length, 1000);
 });
 
 test('the image field is optional', async () => {

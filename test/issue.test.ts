@@ -10,6 +10,7 @@ const base: Omit<IssueContext, 'normalized'> = {
   filedBy: null,
   sourceLink: 'https://discord.com/channels/1/2',
   typedTitle: null,
+  why: null,
   pageUrl: null,
   attachments: [],
 };
@@ -149,4 +150,17 @@ test('by default every attachment is still written as a link', () => {
     ...base, attachments: [attachment], normalized: true,
   });
   assert.ok(body.includes('cdn.discordapp.com'));
+});
+
+test('the reporter\'s own reason is filed verbatim under its own heading', () => {
+  const issue = { ...fromRawInput('kodepos kosong'), why: 'pelanggan batal checkout' };
+  const body = renderDescription(issue, { ...base, normalized: true });
+
+  assert.match(body, /\*\*Kenapa penting\*\*/);
+  assert.match(body, /pelanggan batal checkout/);
+});
+
+test('no why means no empty heading', () => {
+  const body = renderDescription(fromRawInput('kodepos kosong'), { ...base, normalized: true });
+  assert.ok(!body.includes('Kenapa penting'));
 });

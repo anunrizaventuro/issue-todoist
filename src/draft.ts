@@ -25,22 +25,29 @@ export interface Draft {
 export type DraftStatus = 'pending' | 'filed' | 'cancelled';
 
 /**
- * What the edit modal can carry.
+ * What the reporter wrote, as the edit modal carries it.
  *
- * Five fields is Discord's ceiling and it is exactly spent: priority moved to a
- * dropdown on the card, and the due date is left to Todoist.
+ * Split from AiFields because Discord caps a modal at five components and six
+ * fields need correcting — but also because the two are opened for different
+ * reasons: this one fixes your own wording, the other checks the model's guess.
  */
 export interface EditFields {
   title: string;
   url: string | null;
   problem: string;
-  expected: string | null;
-  action: string | null;
+  why: string | null;
 }
 
-export type DraftAction = 'ok' | 'edit' | 'rw' | 'pr' | 'x';
+/** What the model produced, as the second modal carries it. */
+export interface AiFields {
+  expected: string | null;
+  action: string | null;
+  dueString: string | null;
+}
 
-const ACTIONS: readonly DraftAction[] = ['ok', 'edit', 'rw', 'pr', 'x'];
+export type DraftAction = 'ok' | 'edit' | 'ai' | 'rw' | 'pr' | 'x';
+
+const ACTIONS: readonly DraftAction[] = ['ok', 'edit', 'ai', 'rw', 'pr', 'x'];
 
 /**
  * `d:` for components, `dm:` for the modals they open.
@@ -77,7 +84,7 @@ export function claim(draft: Draft, status: 'filed' | 'cancelled'): Draft | null
   return draft.status === 'pending' ? { ...draft, status } : null;
 }
 
-/** Overwrites what the modal carried, leaving priority, due and subtasks alone. */
+/** Overwrites the reporter's own fields, leaving the model's output alone. */
 export function applyEdit(draft: Draft, fields: EditFields): Draft {
   return {
     ...draft,
@@ -88,9 +95,35 @@ export function applyEdit(draft: Draft, fields: EditFields): Draft {
       // URL is a dead link in the ticket.
       url: toUrl(fields.url),
       problem: fields.problem,
+      why: fields.why,
+    },
+  };
+}
+
+/** Overwrites the model's output, leaving what the reporter wrote alone. */
+export function applyAiEdit(draft: Draft, fields: AiFields): Draft {
+  return {
+    ...draft,
+    issue: {
+      ...draft.issue,
       expected: fields.expected,
       action: fields.action,
+      dueString: fields.dueString,
     },
+  };
+}
+
+/**
+ * Replaces everything the model produces after a second pass.
+ *
+ * `why` survives because the model never writes it, and a rewrite of the
+ * description is not a reason to discard the reporter's own reason.
+ */
+export function applyRewrite(draft: Draft, issue: NormalizedIssue, rawInput: string): Draft {
+  return {
+    ...draft,
+    issue: { ...issue, why: draft.issue.why },
+    context: { ...draft.context, rawInput },
   };
 }
 
@@ -114,6 +147,8 @@ export interface DraftStub {
   start(draft: Draft, windowMs: number): Promise<void>;
   read(): Promise<Draft | null>;
   edit(fields: EditFields): Promise<Draft | null>;
+  editAi(fields: AiFields): Promise<Draft | null>;
+  rewrite(issue: NormalizedIssue, rawInput: string): Promise<Draft | null>;
   priority(value: number): Promise<Draft | null>;
   approve(): Promise<ProcessResult | 'closed'>;
   cancel(): Promise<Draft | null>;

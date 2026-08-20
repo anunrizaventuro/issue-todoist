@@ -39,6 +39,7 @@ const context = {
   sourceLink: null,
   attachments: [],
   typedTitle: null,
+  why: null,
   pageUrl: null,
 };
 

@@ -41,8 +41,10 @@ export async function normalizeSubmission(
   context: Omit<IssueContext, 'normalized'>,
 ): Promise<{ issue: NormalizedIssue; context: IssueContext }> {
   const config = configFromEnv(env);
-  const normalized = config ? await normalizeIssue(config, context.rawInput) : null;
-  const base = normalized ?? fromRawInput(context.rawInput);
+  const normalized = config ? await normalizeIssue(config, promptText(context)) : null;
+  // Only the description is required to be absent, so fall back through what is
+  // actually there rather than handing the model's replacement an empty string.
+  const base = normalized ?? fromRawInput(context.rawInput || context.typedTitle || '');
 
   return {
     // What the reporter typed into the form beats what the model read out of the
@@ -51,9 +53,26 @@ export async function normalizeSubmission(
       ...base,
       title: context.typedTitle ? clipTitle(context.typedTitle) : base.title,
       url: toUrl(context.pageUrl) ?? base.url,
+      why: context.why,
     },
     context: { ...context, normalized: normalized !== null },
   };
+}
+
+/**
+ * Everything the reporter wrote, as one prompt.
+ *
+ * Only the title is mandatory now, so any of these can be missing; labelling
+ * the parts keeps a title-only report from reading like a truncated sentence.
+ */
+function promptText(context: Omit<IssueContext, 'normalized'>): string {
+  return [
+    context.typedTitle ? `Judul: ${context.typedTitle}` : null,
+    context.rawInput ? `Deskripsi: ${context.rawInput}` : null,
+    context.why ? `Kenapa ini penting: ${context.why}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n\n') || context.rawInput;
 }
 
 /**

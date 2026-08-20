@@ -20,6 +20,13 @@ export interface NormalizedIssue {
   dueString: string | null;
   /** Page the issue is about: typed into the form, or found in the text. */
   url: string | null;
+  /**
+   * Why this matters, in the reporter's own words.
+   *
+   * Never written by the model — it is the one thing only the person who hit
+   * the problem can answer, so rewriting it would be inventing motivation.
+   */
+  why: string | null;
   /** One Todoist child task each. Empty for the great majority of reports. */
   subtasks: string[];
   needsClarification: boolean;
@@ -37,6 +44,8 @@ export interface IssueContext {
   typedTitle: string | null;
   /** URL typed into the form. Outranks whatever the model found in the text. */
   pageUrl: string | null;
+  /** The "kenapa ini penting" field, kept verbatim. */
+  why: string | null;
   attachments: DiscordAttachment[];
   /** False when no LLM ran and the text was passed through as-is. */
   normalized: boolean;
@@ -59,6 +68,7 @@ export function fromRawInput(rawInput: string): NormalizedIssue {
     priority: 1,
     dueString: null,
     url: null,
+    why: null,
     subtasks: [],
     needsClarification: false,
     clarification: null,
@@ -125,6 +135,9 @@ export function renderDescription(
     // rigour that isn't there.
     blocks.push(issue.problem);
   }
+
+  // Verbatim: this is the reporter's own reason, not something to restructure.
+  if (issue.why) blocks.push(`**Kenapa penting**\n${issue.why}`);
 
   // Early, because it is the first thing whoever picks this up will click.
   if (issue.url) blocks.push(`**Halaman**\n${issue.url}`);

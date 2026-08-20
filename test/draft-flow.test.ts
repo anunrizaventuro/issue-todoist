@@ -26,6 +26,7 @@ function pending(overrides: Partial<Draft> = {}): Draft {
       filedBy: null,
       sourceLink: null,
       typedTitle: null,
+      why: null,
       pageUrl: null,
       attachments: [],
       normalized: true,
@@ -100,7 +101,7 @@ test('Edit opens a modal prefilled from the draft', async () => {
   assert.equal(body.type, RESPONSE_MODAL);
   assert.equal(body.data.custom_id, `dm:edit:${ID}`);
   const ids = body.data.components.map((c: any) => c.component.custom_id);
-  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'expected', 'action']);
+  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'why']);
   assert.ok(body.data.components.length <= 5, 'Discord caps a modal at 5 components');
   assert.equal(body.data.components[0].component.value, 'Kodepos kosong');
 });
@@ -123,8 +124,7 @@ test('submitting the edit updates the card inline, without calling the model', a
         label('title', 'Kodepos tidak terisi otomatis'),
         label('page_url', 'https://app.example.com/checkout'),
         label('raw_input', 'kodepos kosong terus'),
-        label('expected', 'terisi dari kelurahan'),
-        label('action', ''),
+        label('why', 'pelanggan batal checkout'),
       ]),
       env,
     );
@@ -204,4 +204,56 @@ test('a draft button from another guild never reaches the draft store', async ()
 
   const { body } = await call(payload, { ...env, ALLOWED_GUILD_IDS: '1392070580534251621' });
   assert.match(body.data.content, /belum diaktifkan/i);
+});
+
+test('Detail AI opens a modal over what the model produced', async () => {
+  const { env } = withDraft(
+    pending({
+      issue: {
+        ...fromRawInput('kodepos kosong'),
+        title: 'Kodepos kosong',
+        expected: 'terisi dari kelurahan',
+        action: 'pilih kelurahan',
+        dueString: 'tomorrow',
+      },
+    }),
+  );
+  const { body } = await call(click('ai'), env);
+
+  assert.equal(body.type, RESPONSE_MODAL);
+  assert.equal(body.data.custom_id, `dm:ai:${ID}`);
+  const ids = body.data.components.map((c: any) => c.component.custom_id);
+  assert.deepEqual(ids, ['expected', 'action', 'due']);
+  assert.equal(body.data.components[2].component.value, 'tomorrow', 'the due date is editable now');
+});
+
+test('submitting the AI modal updates the card without touching what you wrote', async () => {
+  const outbound = captureFetch();
+  try {
+    const { env } = withDraft(pending());
+    const { body } = await call(
+      modalSubmit('ai', [
+        label('expected', 'kodepos terisi sendiri'),
+        label('action', ''),
+        label('due', 'next monday'),
+      ]),
+      env,
+    );
+
+    assert.equal(body.type, RESPONSE_UPDATE);
+    const card = JSON.stringify(body.data);
+    assert.match(card, /kodepos terisi sendiri/);
+    assert.match(card, /next monday/);
+    assert.match(card, /Kodepos kosong/, 'the title you wrote must survive');
+    assert.equal(outbound.sent.length, 0);
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('the two edit modals together cover every field Discord can carry', () => {
+  // Six fields do not fit in one modal, so the split must not lose one.
+  const both = ['title', 'page_url', 'raw_input', 'why', 'expected', 'action', 'due'];
+  assert.equal(new Set(both).size, both.length);
+  assert.ok(both.length > 5, 'this is exactly why there are two modals');
 });

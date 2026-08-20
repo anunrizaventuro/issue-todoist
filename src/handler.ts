@@ -12,6 +12,7 @@ import {
 } from './commands.ts';
 import {
   ACTION_ID,
+  buildAiModal,
   buildEditModal,
   buildIssueModal,
   buildRewriteModal,
@@ -20,8 +21,10 @@ import {
   EXPECTED_ID,
   MODAL_PREFIX,
   PAGE_URL_ID,
+  DUE_ID,
   RAW_INPUT_ID,
   TITLE_ID,
+  WHY_ID,
 } from './discord.ts';
 import {
   isReporter,
@@ -56,6 +59,14 @@ export type WaitUntil = (promise: Promise<unknown>) => void;
 
 /** Shortest issue we accept. Discord's client enforces the same via min_length. */
 const MIN_ISSUE_LENGTH = 10;
+
+/**
+ * Shortest title we accept.
+ *
+ * The title is the only mandatory field now, so it is the only thing standing
+ * between an empty form and a task nobody can act on.
+ */
+const MIN_TITLE_LENGTH = 5;
 
 /**
  * Handles one Discord interaction request.
@@ -153,17 +164,21 @@ async function handleModalSubmit(
     return json(ephemeral('Form tidak dikenal.'));
   }
 
-  const rawInput = findValue(interaction.data.components, RAW_INPUT_ID)?.trim() ?? '';
-  if (rawInput.length < MIN_ISSUE_LENGTH) {
+  const typedTitle = findValue(interaction.data.components, TITLE_ID)?.trim() || null;
+  if (!typedTitle || typedTitle.length < MIN_TITLE_LENGTH) {
     // Rejected before any API call is made.
-    return json(ephemeral('Issue-nya terlalu pendek. Tolong tulis sedikit lebih detail.'));
+    return json(ephemeral('Judulnya terlalu pendek. Tolong tulis sedikit lebih jelas.'));
   }
 
+  // Everything below the title is optional: a one-line report is still a report.
+  const rawInput = findValue(interaction.data.components, RAW_INPUT_ID)?.trim() ?? '';
   const pageUrl = findValue(interaction.data.components, PAGE_URL_ID)?.trim() || null;
-  const typedTitle = findValue(interaction.data.components, TITLE_ID)?.trim() || null;
+  const why = findValue(interaction.data.components, WHY_ID)?.trim() || null;
 
   // ACK now, work later: everything past this point is outside the 3-second budget.
-  waitUntil(createDraftAndReview(interaction, env, command, rawInput, { pageUrl, typedTitle }));
+  waitUntil(
+    createDraftAndReview(interaction, env, command, rawInput, { pageUrl, typedTitle, why }),
+  );
   return json(deferEphemeral());
 }
 
@@ -228,6 +243,7 @@ async function createDraftAndReview(
     // Only the modal has these fields; the context menu leaves them to the model.
     typedTitle: null,
     pageUrl: null,
+    why: null,
     attachments: attachmentsOf(interaction),
     ...overrides,
   };
@@ -288,6 +304,9 @@ async function handleDraftComponent(
     case 'edit':
       return json(buildEditModal(draft));
 
+    case 'ai':
+      return json(buildAiModal(draft));
+
     case 'rw':
       return json(buildRewriteModal(draft));
 
@@ -339,15 +358,24 @@ async function handleDraftModal(
 
   const components = interaction.data?.components;
 
+  // Neither edit modal calls the provider, so both are fast enough to answer
+  // inline rather than deferring.
   if (ref.action === 'edit') {
     const next = await stub.edit({
       title: findValue(components, TITLE_ID)?.trim() || draft.issue.title,
       url: findValue(components, PAGE_URL_ID)?.trim() || null,
-      problem: findValue(components, RAW_INPUT_ID)?.trim() || draft.issue.problem,
+      problem: findValue(components, RAW_INPUT_ID)?.trim() ?? '',
+      why: findValue(components, WHY_ID)?.trim() || null,
+    });
+    return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
+  }
+
+  if (ref.action === 'ai') {
+    const next = await stub.editAi({
       expected: findValue(components, EXPECTED_ID)?.trim() || null,
       action: findValue(components, ACTION_ID)?.trim() || null,
+      dueString: findValue(components, DUE_ID)?.trim() || null,
     });
-    // No provider call, so this is fast enough to answer inline.
     return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
   }
 
@@ -369,13 +397,9 @@ async function rewriteDraft(
   rawInput: string,
 ): Promise<void> {
   const { issue } = await normalizeSubmission(env, { ...draft.context, rawInput });
-  const next = await stub.edit({
-    title: issue.title,
-    url: issue.url,
-    problem: issue.problem,
-    expected: issue.expected,
-    action: issue.action,
-  });
+  // Replaces the whole issue, subtasks and priority included: a second pass that
+  // kept the first pass's leftovers would be neither one thing nor the other.
+  const next = await stub.rewrite(issue, rawInput);
 
   await editOriginalResponse(
     interaction,

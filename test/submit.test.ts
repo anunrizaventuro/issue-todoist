@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { after, before, beforeEach } from 'node:test';
 
-import { buildIssueModal } from '../src/discord.ts';
 import { handleInteraction } from '../src/handler.ts';
 import { findValue } from '../src/interaction.ts';
 import { captureFetch, env, memoryDrafts, signed } from './helpers.ts';
@@ -16,7 +15,11 @@ const RESPONSE_DEFERRED = 5;
 const RESPONSE_MESSAGE = 4;
 
 /** Modal payload as Discord nests it: Label wrapping the real input. */
-function submission(text: string, extra: Record<string, unknown> = {}) {
+function submission(
+  text: string,
+  extra: Record<string, unknown> = {},
+  title = 'Checkout ketutup navbar',
+) {
   return {
     type: MODAL_SUBMIT,
     application_id: '1',
@@ -24,6 +27,8 @@ function submission(text: string, extra: Record<string, unknown> = {}) {
     data: {
       custom_id: 'issue:issue',
       components: [
+        // The title is the only mandatory field, so every valid submission has one.
+        { type: 18, component: { type: 4, custom_id: 'title', value: title } },
         { type: 18, component: { type: 4, custom_id: 'raw_input', value: text } },
       ],
       ...extra,
@@ -57,11 +62,19 @@ test('a valid submission defers instead of replying inline', async () => {
   assert.equal(deferred.length, 1, 'the real work must be scheduled via waitUntil');
 });
 
-test('a too-short issue is rejected without scheduling any work', async () => {
-  const { body, deferred } = await call(submission('error'));
+test('a too-short title is rejected without scheduling any work', async () => {
+  // The title is the last thing standing between an empty form and a task
+  // nobody can act on, now that everything else is optional.
+  const { body, deferred } = await call(submission('kodepos kosong', {}, 'eh'));
   assert.equal(body.type, RESPONSE_MESSAGE);
   assert.match(body.data.content, /terlalu pendek/);
   assert.equal(deferred.length, 0, 'must not spend an API call on a rejected issue');
+});
+
+test('a title with no description at all is accepted', async () => {
+  const draft = await submitToDraft(submission('', {}, 'Kodepos tidak terisi otomatis'));
+  assert.equal(draft.issue.title, 'Kodepos tidak terisi otomatis');
+  assert.equal(draft.status, 'pending');
 });
 
 test('an unknown modal custom_id is rejected', async () => {
@@ -135,35 +148,29 @@ test('with no draft store reachable the report is filed the old way', async () =
   assert.ok(filedTask(), 'the issue must still reach Todoist');
 });
 
-test('the modal asks for title, url, description and images in that order', () => {
-  const modal = buildIssueModal('issue');
-  const ids = modal.data.components.map((c: any) => c.component.custom_id);
-  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'attachments']);
-});
-
-test('the title typed into the form beats the one the model would pick', async () => {
-  const payload = submission('tombol checkout ketutup navbar di mobile');
+test('the why field reaches the draft verbatim', async () => {
+  const payload = submission('kodepos kosong terus');
   payload.data.components.push({
     type: 18,
-    component: { type: 4, custom_id: 'title', value: 'Navbar menutupi tombol checkout' },
+    component: { type: 4, custom_id: 'why', value: 'pelanggan batal checkout' },
   });
 
   const draft = await submitToDraft(payload);
+  assert.equal(draft.issue.why, 'pelanggan batal checkout', 'the model must not rewrite it');
+});
+
+test('the title typed into the form beats the one the model would pick', async () => {
+  const draft = await submitToDraft(
+    submission('tombol checkout ketutup navbar di mobile', {}, 'Navbar menutupi tombol checkout'),
+  );
   assert.equal(draft.issue.title, 'Navbar menutupi tombol checkout');
 });
 
 test('a title longer than Todoist keeps is clipped, not dropped', async () => {
-  const payload = submission('tombol checkout ketutup navbar di mobile');
-  payload.data.components.push({
-    type: 18,
-    component: { type: 4, custom_id: 'title', value: 'x'.repeat(150) },
-  });
-
-  const draft = await submitToDraft(payload);
+  const draft = await submitToDraft(
+    submission('tombol checkout ketutup navbar di mobile', {}, 'x'.repeat(150)),
+  );
   assert.ok(draft.issue.title.length <= 100, `got ${draft.issue.title.length}`);
 });
 
-test('without a title field the model keeps deciding, as the right-click path needs', async () => {
-  const draft = await submitToDraft(submission('tombol checkout ketutup navbar di mobile'));
-  assert.equal(draft.issue.title, 'tombol checkout ketutup navbar di mobile');
-});
+

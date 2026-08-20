@@ -33,7 +33,9 @@ dalam 24 jam.
 | Timeout 10 menit, bukan 30 | Token interaction Discord mati di menit ke-15. Di menit 10 alarm masih bisa **menyunting pesan draft itu sendiri** jadi "otomatis dimasukkan". Di menit 30 tidak bisa, dan pelapor akan menatap tombol Approve yang sudah basi. |
 | Durable Object per draft, bukan KV/D1 + cron | DO dieksekusi berurutan per objek, jadi "approve di detik 599" dan "alarm di detik 600" mustahil menghasilkan dua task. Timer per-draft tanpa sweeper. KV *eventually consistent* — double-file adalah bug nyata di sana. Cron juga tidak jalan sendiri di `wrangler dev`, padahal itulah jalur yang melayani produksi hari ini. |
 | Ada tombol Batal | Begitu auto-file dipilih, salah kirim **pasti** mendarat di Todoist 10 menit kemudian. Tanpa Batal tidak ada cara menghentikannya. |
-| Prioritas lewat dropdown di kartu, bukan modal | Modal Discord dibatasi 5 field dan sudah habis. Prioritas adalah field yang paling sering ditebak salah AI, dan satu dropdown = satu klik. |
+| Prioritas lewat dropdown di kartu, bukan modal | Prioritas adalah field yang paling sering ditebak salah AI, dan satu dropdown = satu klik. |
+| Dua modal edit, bukan satu | Tujuh field perlu bisa dikoreksi dan Discord membatasi modal 5 komponen. Pembagiannya bukan sekadar soal muat: satu modal berisi kalimat yang ditulis pelapor, satu lagi berisi tebakan mesin yang perlu diperiksa — dua alasan berbeda untuk membukanya. |
+| Hanya Judul yang wajib | Laporan satu baris tetap laporan. Field wajib yang orang tidak punya isinya hanya akan diisi asal. |
 | AI tidak dipangkas; kartu review menampilkan semuanya | Kalau kartu menampilkan lebih sedikit daripada yang dikirim, pelapor meng-approve sesuatu yang tidak dia lihat — dan review kehilangan gunanya. |
 | Judul & URL yang diketik menang atas AI | Pola yang sudah ada untuk `pageUrl` di `process.ts`. Skema AI tetap menghasilkan `title` karena jalur klik-kanan tidak punya modal. |
 
@@ -58,7 +60,7 @@ harapan, langkah), Gambar, prioritas, tenggat, sub-task, dan pertanyaan
 klarifikasi bila AI mengajukannya. Ditutup baris "otomatis masuk dalam 10 menit
 kalau didiamkan".
 
-Baris 1: `[ Approve ] [ Edit hasil ] [ Tulis ulang ] [ Batal ]`
+Baris 1: `[ Approve ] [ Edit ] [ Detail AI ] [ Tulis ulang ] [ Batal ]` — tepat lima, batas satu Action Row.
 Baris 2: dropdown prioritas p1-p4.
 
 ### Interaksi
@@ -66,7 +68,8 @@ Baris 2: dropdown prioritas p1-p4.
 | custom_id | Respon Discord | Kerja |
 |---|---|---|
 | `d:ok:<id>` | DEFERRED_UPDATE (6) | klaim `filed` -> `fileIssue()` -> tulis ulang pesan dengan `resultMessage()` |
-| `d:edit:<id>` | MODAL | prefill 5 field: Judul, Halaman/URL, Deskripsi, Harapan, Langkah |
+| `d:edit:<id>` | MODAL | yang ditulis pelapor: Judul, Halaman, Deskripsi, Kenapa penting |
+| `d:ai:<id>` | MODAL | yang dikarang AI: Harapan, Langkah, Tenggat |
 | `dm:edit:<id>` | UPDATE_MESSAGE (7) | timpa field, reset alarm, render ulang kartu. AI tidak jalan, jadi instan |
 | `d:rw:<id>` | MODAL | prefill teks asli |
 | `dm:rw:<id>` | DEFERRED_UPDATE (6) | normalisasi ulang (5-15 dtk), reset alarm, render ulang kartu |
@@ -97,12 +100,14 @@ Kalau status masih `pending`: `fileIssue()` dengan label tambahan
 
 ### Diubah
 
-- **`src/discord.ts`** — modal jadi 4 field: Judul (short, wajib, min 5, maks 100 —
-  batas `clipTitle`), Halaman/URL (short, opsional, maks 500), Deskripsi (paragraph,
-  wajib, min 10, maks 4000), Gambar (file upload, maks 4). Tambah `TITLE_ID`.
-  Tambah perakit modal edit dan modal tulis-ulang.
-- **`src/issue.ts`** — `IssueContext` dapat `typedTitle: string | null`, kembar
-  dengan `pageUrl`.
+- **`src/discord.ts`** — modal jadi 5 field, dan hanya Judul yang wajib: Judul
+  (short, wajib, min 5, maks 100 — batas `clipTitle`), Halaman/URL (short, maks 500),
+  Deskripsi (paragraph, maks 4000), Kenapa ini penting (paragraph, maks 1000),
+  Gambar (file upload, maks 4). Tambah `TITLE_ID`, `WHY_ID`, `DUE_ID`. Tambah
+  perakit modal edit, modal detail AI, dan modal tulis-ulang.
+- **`src/issue.ts`** — `IssueContext` dapat `typedTitle` dan `why`, kembar dengan
+  `pageUrl`. `NormalizedIssue` dapat `why`, yang tidak pernah ditulis model dan
+  dirender sebagai bagian `**Kenapa penting**`.
 - **`src/process.ts`** — dipecah jadi `normalizeSubmission()` (dipanggil handler
   sebelum draft dibuat) dan `fileIssue()` (dipanggil DO saat approve atau alarm).
   Override judul diterapkan di tempat yang sama dengan override URL.
@@ -161,10 +166,8 @@ Gaya yang sudah ada: `node:test`, tanpa framework tambahan.
 - Triase publik / approve oleh orang lain. Pilihan sadar; bisa ditambahkan di
   atas ini tanpa membongkar apa pun.
 - Mengedit sub-task, gambar, atau teks klarifikasi dari kartu review.
-- Mengedit **tenggat** dari kartu review. Slot modal habis di lima (Judul, URL,
-  Deskripsi, Harapan, Langkah) dan tenggat jarang terisi — AI hanya mengisinya
-  bila pelapor menyebut. Kalau salah: "Tulis ulang", atau perbaiki di Todoist.
-  Prioritas tidak kena batas ini karena dipindah ke dropdown di kartu.
+- ~~Mengedit tenggat~~ — batasan ini hilang begitu modal edit dipecah dua;
+  tenggat sekarang ada di modal "Detail AI".
 - Riwayat draft, statistik "berapa yang diedit", atau audit trail.
 - Mengubah task Todoist yang sudah dibuat.
 

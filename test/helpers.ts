@@ -109,6 +109,14 @@ export function memoryDrafts() {
       current = { ...current, issue: { ...current.issue, ...fields } };
       return current;
     },
+    editAi: async (fields: any) => {
+      current = { ...current, issue: { ...current.issue, ...fields } };
+      return current;
+    },
+    rewrite: async (issue: any, rawInput: string) => {
+      current = { ...current, issue, context: { ...current.context, rawInput } };
+      return current;
+    },
     priority: async (value: number) => {
       current = { ...current, issue: { ...current.issue, priority: value } };
       return current;

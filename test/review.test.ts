@@ -19,6 +19,7 @@ function draft(overrides: Partial<Draft> = {}): Draft {
       filedBy: null,
       sourceLink: null,
       typedTitle: null,
+      why: null,
       pageUrl: null,
       attachments: [],
       normalized: true,
@@ -38,10 +39,13 @@ test('the card carries every action the reporter can take', () => {
   assert.deepEqual(ids, [
     `d:ok:${ID}`,
     `d:edit:${ID}`,
+    `d:ai:${ID}`,
     `d:rw:${ID}`,
     `d:x:${ID}`,
     `d:pr:${ID}`,
   ]);
+  const buttons = (reviewMessage(draft(), 10) as any).components[0].components;
+  assert.ok(buttons.length <= 5, 'Discord caps an Action Row at 5 buttons');
 });
 
 test('the card says when it will file itself', () => {

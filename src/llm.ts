@@ -245,6 +245,8 @@ function toIssue(text: string): NormalizedIssue | null {
     priority,
     dueString: str(value.dueString),
     url: toUrl(str(value.url)),
+    // Supplied by the reporter, never by the model.
+    why: null,
     subtasks: subtasks(value.subtasks),
     needsClarification: value.needsClarification,
     clarification: str(value.clarification),

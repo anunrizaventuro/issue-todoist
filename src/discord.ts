@@ -22,8 +22,14 @@ export const ATTACHMENTS_ID = 'attachments';
 /** custom_id of the expected-behaviour field in the edit modal. */
 export const EXPECTED_ID = 'expected';
 
-/** custom_id of the steps field in the edit modal. */
+/** custom_id of the steps field in the AI modal. */
 export const ACTION_ID = 'action';
+
+/** custom_id of the "why this matters" field. */
+export const WHY_ID = 'why';
+
+/** custom_id of the due-date field in the AI modal. */
+export const DUE_ID = 'due';
 
 /** Prefix that carries the command name across the modal round-trip. */
 export const MODAL_PREFIX = 'issue:';
@@ -88,10 +94,25 @@ export function buildIssueModal(command: CommandName) {
             type: MessageComponentTypes.INPUT_TEXT,
             custom_id: RAW_INPUT_ID,
             style: TextStyleTypes.PARAGRAPH,
-            required: true,
-            min_length: 10,
+            // Only the title is mandatory: a one-line report is still a report,
+            // and a required field people have nothing to put in gets filled
+            // with noise.
+            required: false,
             max_length: 4000,
             placeholder: config.placeholder,
+          },
+        },
+        {
+          type: MessageComponentTypes.LABEL,
+          label: 'Kenapa ini penting (opsional)',
+          description: 'Dampaknya ke siapa, dan seberapa mengganggu.',
+          component: {
+            type: MessageComponentTypes.INPUT_TEXT,
+            custom_id: WHY_ID,
+            style: TextStyleTypes.PARAGRAPH,
+            required: false,
+            max_length: 1000,
+            placeholder: 'Pelanggan tidak bisa checkout, jadi order batal.',
           },
         },
         {
@@ -153,11 +174,11 @@ function textField(
 }
 
 /**
- * Correcting the model's output directly, without paying for another call.
+ * The reporter's own words, for fixing their own wording.
  *
- * Five fields is Discord's ceiling and it is exactly spent. Priority moved to a
- * dropdown on the card; the due date is left to Todoist, since the model only
- * fills it in when the reporter actually named one.
+ * Split from the AI modal because Discord caps a modal at five components and
+ * six fields need correcting — but the split earns its keep anyway: these are
+ * sentences you wrote, those are a machine's guesses that deserve a second look.
  */
 export function buildEditModal(draft: Draft) {
   const { issue } = draft;
@@ -173,14 +194,38 @@ export function buildEditModal(draft: Draft) {
         }),
         textField(PAGE_URL_ID, 'Halaman', issue.url, TextStyleTypes.SHORT, { max_length: 500 }),
         textField(RAW_INPUT_ID, 'Deskripsi', issue.problem, TextStyleTypes.PARAGRAPH, {
-          required: true,
           max_length: 4000,
         }),
+        textField(WHY_ID, 'Kenapa ini penting', issue.why, TextStyleTypes.PARAGRAPH, {
+          max_length: 1000,
+        }),
+      ],
+    },
+  };
+}
+
+/**
+ * What the model produced, so a wrong guess can be corrected in place.
+ *
+ * The due date lives here rather than on the card: it is a phrase Todoist parses
+ * ("tomorrow", "next monday"), not something a dropdown could offer.
+ */
+export function buildAiModal(draft: Draft) {
+  const { issue } = draft;
+  return {
+    type: InteractionResponseType.MODAL,
+    data: {
+      custom_id: draftCustomId('ai', draft.id, true),
+      title: 'Perbaiki hasil AI',
+      components: [
         textField(EXPECTED_ID, 'Harapan', issue.expected, TextStyleTypes.PARAGRAPH, {
           max_length: 1000,
         }),
         textField(ACTION_ID, 'Langkah', issue.action, TextStyleTypes.PARAGRAPH, {
           max_length: 1000,
+        }),
+        textField(DUE_ID, 'Tenggat', issue.dueString, TextStyleTypes.SHORT, {
+          max_length: 100,
         }),
       ],
     },

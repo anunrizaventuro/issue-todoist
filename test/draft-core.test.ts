@@ -21,6 +21,7 @@ function newDraft(): Draft {
       filedBy: null,
       sourceLink: null,
       typedTitle: null,
+      why: null,
       pageUrl: null,
       attachments: [],
       normalized: true,
@@ -141,8 +142,7 @@ test('editing pushes the deadline back', async () => {
     title: 'Kodepos kosong',
     url: null,
     problem: 'kodepos tidak terisi',
-    expected: null,
-    action: null,
+    why: null,
   });
 
   assert.equal(edited!.issue.title, 'Kodepos kosong');
@@ -158,7 +158,7 @@ test('a finished draft refuses edits instead of quietly accepting them', async (
 
     assert.equal(await obj.priority(4), null);
     assert.equal(
-      await obj.edit({ title: 'x', url: null, problem: 'y', expected: null, action: null }),
+      await obj.edit({ title: 'x', url: null, problem: 'y', why: null }),
       null,
     );
   } finally {
