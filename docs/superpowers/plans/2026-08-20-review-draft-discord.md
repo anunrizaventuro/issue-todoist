@@ -824,11 +824,21 @@ export async function fileIssue(
   context: IssueContext,
   extraLabels: string[] = [],
 ): Promise<ProcessResult> {
+  // Uploaded before the task is created: the description decides whether to
+  // write a Discord link based on what Todoist already holds. Already in main
+  // from the images plan — keep it.
+  const images = context.attachments.length
+    ? await uploadAttachments(env.TODOIST_API_TOKEN, context.attachments)
+    : { uploaded: [], failed: [] };
+
   try {
     const task = await createTask(env.TODOIST_API_TOKEN, issue, context, images.failed, extraLabels);
     const subtasks = issue.subtasks.length
       ? await createSubtasks(env.TODOIST_API_TOKEN, task.id, issue.subtasks)
       : { created: 0, failed: 0 };
+    const attached = images.uploaded.length
+      ? await attachToTask(env.TODOIST_API_TOKEN, task.id, images.uploaded)
+      : 0;
 
     return {
       issue,
@@ -837,6 +847,8 @@ export async function fileIssue(
       normalized: context.normalized,
       subtasksCreated: subtasks.created,
       subtasksFailed: subtasks.failed,
+      attachmentsUploaded: attached,
+      attachmentsFailed: images.failed.length + (images.uploaded.length - attached),
     };
   } catch (cause) {
     console.error('Todoist create failed', cause);
@@ -847,10 +859,17 @@ export async function fileIssue(
       normalized: context.normalized,
       subtasksCreated: 0,
       subtasksFailed: 0,
+      attachmentsUploaded: 0,
+      attachmentsFailed: context.attachments.length,
     };
   }
 }
 ```
+
+**Ini refactor, bukan penulisan ulang.** `fileIssue` adalah `processSubmission`
+yang sekarang, dipotong bagian normalisasinya. Seluruh logika upload gambar sudah
+ada di sana dari plan gambar — pindahkan apa adanya, jangan diketik ulang dari
+nol, dan pastikan `uploadAttachments` serta `attachToTask` tetap ter-import.
 
 Import `clipTitle` dan `toUrl` dari `./issue.ts`.
 
