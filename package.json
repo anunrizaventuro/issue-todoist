@@ -12,7 +12,6 @@
     "test": "node --test test/*.test.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.117.1",
     "discord-interactions": "^4.4.0"
   },
   "devDependencies": {

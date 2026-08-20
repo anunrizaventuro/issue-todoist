@@ -4,7 +4,27 @@ compatibility_date = "2026-08-18"
 compatibility_flags = ["nodejs_compat"]
 
 # Non-secret config. Secrets are set with `wrangler secret put <NAME>`:
-#   DISCORD_PUBLIC_KEY, ANTHROPIC_API_KEY, TODOIST_API_TOKEN
+#   DISCORD_PUBLIC_KEY, LLM_API_KEY, TODOIST_API_TOKEN
 # (DISCORD_BOT_TOKEN is only used by scripts/register.ts and is never read by the Worker.)
+#
+# LLM_BASE_URL is the root of any OpenAI-compatible API, without
+# `/chat/completions` — e.g. https://openrouter.ai/api/v1. Empty here means
+# reports are filed as raw text instead of being normalized.
+# Comma-separated Discord server IDs allowed to file issues. Empty means any
+# server that adds the app can write into the Todoist project, so keep it set.
 [vars]
-ALLOWED_GUILD_IDS = ""
+ALLOWED_GUILD_IDS = "1392070580534251621"
+LLM_BASE_URL = ""
+LLM_MODEL = ""
+# Minutes before an untouched draft files itself. Must stay under 15: the Discord
+# interaction token expires then, and the alarm could no longer replace the draft
+# card with the result.
+REVIEW_TIMEOUT_MINUTES = "10"
+
+[[durable_objects.bindings]]
+name = "DRAFTS"
+class_name = "IssueDraft"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["IssueDraft"]

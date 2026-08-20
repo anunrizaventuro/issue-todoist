@@ -11,6 +11,13 @@ export interface DiscordAttachment {
   height?: number;
 }
 
+export interface DiscordMessage {
+  id: string;
+  content: string;
+  attachments: DiscordAttachment[];
+  author?: { id?: string; username?: string; global_name?: string };
+}
+
 export interface Interaction {
   type?: number;
   /** Needed to build the follow-up webhook URL. */
@@ -22,9 +29,18 @@ export interface Interaction {
   user?: { id?: string; username?: string; global_name?: string };
   data?: {
     name?: string;
+    /** 1 = slash command, 2 = user menu, 3 = message menu. */
+    type?: number;
     custom_id?: string;
     components?: unknown;
-    resolved?: { attachments?: Record<string, DiscordAttachment> };
+    /** Message id the context menu was invoked on. */
+    target_id?: string;
+    /** Values chosen in a select menu. */
+    values?: string[];
+    resolved?: {
+      attachments?: Record<string, DiscordAttachment>;
+      messages?: Record<string, DiscordMessage>;
+    };
   };
 }
 
@@ -67,6 +83,27 @@ export function attachmentsOf(interaction: Interaction): DiscordAttachment[] {
   return Object.values(interaction.data?.resolved?.attachments ?? {});
 }
 
+/**
+ * Whether this guild may file issues.
+ *
+ * An empty list means unrestricted — the documented development default, and
+ * what every existing deployment already has configured. A guild-less
+ * interaction (a DM) has nothing to match, so it is refused once a list is set.
+ */
+export function isGuildAllowed(allowList: string | undefined, guildId: string | undefined): boolean {
+  const allowed = (allowList ?? '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean);
+
+  return allowed.length === 0 || (guildId !== undefined && allowed.includes(guildId));
+}
+
+/** Discord user id of whoever triggered the interaction. */
+export function userIdOf(interaction: Interaction): string | undefined {
+  return interaction.member?.user?.id ?? interaction.user?.id;
+}
+
 /** Display name of whoever triggered the interaction. */
 export function authorOf(interaction: Interaction): string {
   const user = interaction.member?.user ?? interaction.user;
@@ -77,4 +114,20 @@ export function authorOf(interaction: Interaction): string {
 export function sourceLinkOf(interaction: Interaction): string | null {
   const { guild_id: guild, channel_id: channel } = interaction;
   return guild && channel ? `https://discord.com/channels/${guild}/${channel}` : null;
+}
+
+/** The message a context menu command was invoked on. */
+export function targetMessageOf(interaction: Interaction): DiscordMessage | undefined {
+  const id = interaction.data?.target_id;
+  return id ? interaction.data?.resolved?.messages?.[id] : undefined;
+}
+
+/** Deep-link to a specific message, which is a better citation than the channel. */
+export function messageLink(interaction: Interaction, messageId: string): string | null {
+  const { guild_id: guild, channel_id: channel } = interaction;
+  return guild && channel ? `https://discord.com/channels/${guild}/${channel}/${messageId}` : null;
+}
+
+export function displayName(user: DiscordMessage['author']): string {
+  return user?.global_name || user?.username || 'unknown';
 }

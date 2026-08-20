@@ -5,8 +5,18 @@
 # Discord → Developer Portal → your app → General Information → Public Key
 DISCORD_PUBLIC_KEY=
 
-# Anthropic → console.anthropic.com → API Keys
-ANTHROPIC_API_KEY=
+# The LLM that rewrites messy reports into structured issues.
+# Any OpenAI-compatible endpoint works — the URL is the API root, without
+# `/chat/completions`. Leave any of the three empty to skip normalization
+# entirely: reports then reach Todoist as raw text, labelled for triage.
+#
+#   OpenRouter   https://openrouter.ai/api/v1   anthropic/claude-opus-5
+#   OpenAI       https://api.openai.com/v1      gpt-5
+#   Groq         https://api.groq.com/openai/v1 llama-3.3-70b-versatile
+#   Ollama       http://localhost:11434/v1      qwen3
+LLM_BASE_URL=
+LLM_MODEL=
+LLM_API_KEY=
 
 # Todoist → Settings → Integrations → Developer → API token
 TODOIST_API_TOKEN=

@@ -8,7 +8,7 @@
  * secrets stay in one gitignored place.
  */
 import { readFileSync } from 'node:fs';
-import { COMMANDS } from '../src/commands.ts';
+import { COMMANDS, MESSAGE_COMMAND_NAME } from '../src/commands.ts';
 
 function loadDevVars(): Record<string, string> {
   try {
@@ -37,13 +37,17 @@ const appId = value('DISCORD_APP_ID');
 const guildId = value('DISCORD_GUILD_ID');
 const botToken = value('DISCORD_BOT_TOKEN');
 
-const body = Object.entries(COMMANDS).map(([name, config]) => ({
-  name,
-  description: config.description,
-  type: 1, // CHAT_INPUT
-  // Left permissive on purpose: server admins restrict access per role under
-  // Server Settings -> Integrations, without a redeploy.
-}));
+const body = [
+  ...Object.entries(COMMANDS).map(([name, config]) => ({
+    name,
+    description: config.description,
+    type: 1, // CHAT_INPUT
+    // Left permissive on purpose: server admins restrict access per role under
+    // Server Settings -> Integrations, without a redeploy.
+  })),
+  // MESSAGE context menu. Carries no description field — Discord rejects it.
+  { name: MESSAGE_COMMAND_NAME, type: 3 },
+];
 
 const res = await fetch(
   `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`,
@@ -62,6 +66,8 @@ if (!res.ok) {
   process.exit(1);
 }
 
-const registered = (await res.json()) as Array<{ name: string }>;
+const registered = (await res.json()) as Array<{ name: string; type: number }>;
 console.log(`Registered ${registered.length} command(s) in guild ${guildId}:`);
-for (const command of registered) console.log(`  /${command.name}`);
+for (const c of registered) {
+  console.log(c.type === 3 ? `  [klik kanan] ${c.name}` : `  /${c.name}`);
+}

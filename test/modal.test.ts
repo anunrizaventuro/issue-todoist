@@ -12,56 +12,104 @@ const COMPONENT_LABEL = 18;
 const COMPONENT_TEXT_INPUT = 4;
 const COMPONENT_FILE_UPLOAD = 19;
 const STYLE_PARAGRAPH = 2;
+const STYLE_SHORT = 1;
 
 const call = (req: Request) => handleInteraction(req, env, noopWaitUntil);
 
 async function modalComponents(): Promise<any[]> {
-  const res = await call(signed({ type: APPLICATION_COMMAND, data: { name: 'development' } }));
+  const res = await call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
   return ((await res.json()) as any).data.components;
 }
 
 const openModal = () =>
-  call(signed({ type: APPLICATION_COMMAND, data: { name: 'development' } }));
+  call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
 
-test('/development responds with a modal titled Input Issue', async () => {
+/** By custom_id rather than position, so reordering the form breaks nothing. */
+async function field(customId: string): Promise<any> {
+  const found = (await modalComponents()).find((c) => c.component.custom_id === customId);
+  assert.ok(found, `no field with custom_id ${customId}`);
+  return found;
+}
+
+test('/issue responds with a modal titled Input Issue', async () => {
   const res = await openModal();
   assert.equal(res.status, 200);
 
   const body = (await res.json()) as any;
   assert.equal(body.type, RESPONSE_MODAL);
-  assert.equal(body.data.custom_id, 'issue:development');
+  assert.equal(body.data.custom_id, 'issue:issue');
   assert.equal(body.data.title, 'Input Issue');
 });
 
-test('both fields sit inside Labels, not Action Rows', async () => {
+test('every field sits inside a Label, not an Action Row', async () => {
   // Action Rows are deprecated for modal inputs; Discord expects a Label.
   const components = await modalComponents();
 
-  assert.equal(components.length, 2);
+  assert.equal(components.length, 5);
+  assert.ok(components.length <= 5, 'Discord caps a modal at 5 components — this is the ceiling');
   for (const component of components) {
     assert.equal(component.type, COMPONENT_LABEL);
   }
 });
 
-test('the text field is a required paragraph with a length floor', async () => {
-  const [text] = await modalComponents();
+test('the form asks for title, url, description, why and images in that order', async () => {
+  const ids = (await modalComponents()).map((c: any) => c.component.custom_id);
+  assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'why', 'attachments']);
+});
+
+test('the title is the only field the reporter must fill in', async () => {
+  const required = (await modalComponents())
+    .filter((c: any) => c.component.required === true)
+    .map((c: any) => c.component.custom_id);
+  assert.deepEqual(required, ['title']);
+});
+
+test('the title is required and capped where Todoist truncates', async () => {
+  const title = await field('title');
+  assert.equal(title.component.type, COMPONENT_TEXT_INPUT);
+  assert.equal(title.component.style, STYLE_SHORT);
+  assert.equal(title.component.required, true);
+  assert.equal(title.component.max_length, 100, 'clipTitle enforces the same ceiling');
+});
+
+test('the description is an optional paragraph', async () => {
+  // A one-line report is still a report; a required field people have nothing
+  // to put in just gets filled with noise.
+  const text = await field('raw_input');
   assert.equal(text.component.type, COMPONENT_TEXT_INPUT);
   assert.equal(text.component.style, STYLE_PARAGRAPH);
-  assert.equal(text.component.custom_id, 'raw_input');
-  assert.equal(text.component.required, true);
-  assert.equal(text.component.min_length, 10);
+  assert.equal(text.component.required, false);
+  assert.equal(text.component.min_length, undefined, 'a floor would make it required in practice');
   assert.equal(text.component.max_length, 4000);
+});
+
+test('the why field is an optional paragraph', async () => {
+  const why = await field('why');
+  assert.equal(why.component.style, STYLE_PARAGRAPH);
+  assert.equal(why.component.required, false);
+  assert.equal(why.component.max_length, 1000);
 });
 
 test('the image field is optional', async () => {
   // File Upload defaults to required:true inside modals, which would block
   // every text-only issue. This must stay explicitly false.
-  const [, files] = await modalComponents();
+  const files = await field('attachments');
   assert.equal(files.component.type, COMPONENT_FILE_UPLOAD);
   assert.equal(files.component.custom_id, 'attachments');
   assert.equal(files.component.required, false);
   assert.equal(files.component.min_values, 0);
   assert.equal(files.component.max_values, MAX_ATTACHMENTS);
+});
+
+test('the URL field is an optional single-line input', async () => {
+  // Most issues are not about one specific page, so requiring this would make
+  // the form heavier for the common case.
+  const url = await field('page_url');
+  assert.equal(url.component.type, COMPONENT_TEXT_INPUT);
+  assert.equal(url.component.style, STYLE_SHORT);
+  assert.equal(url.component.custom_id, 'page_url');
+  assert.equal(url.component.required, false);
+  assert.equal(url.component.max_length, 500);
 });
 
 test('unknown command gets an ephemeral reply instead of a modal', async () => {
