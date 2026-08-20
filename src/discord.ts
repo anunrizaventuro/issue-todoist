@@ -5,6 +5,7 @@ import {
   TextStyleTypes,
 } from 'discord-interactions';
 import { COMMANDS, type CommandName } from './commands.ts';
+import { draftCustomId, type Draft } from './draft.ts';
 
 /** custom_id of the title field. */
 export const TITLE_ID = 'title';
@@ -17,6 +18,12 @@ export const PAGE_URL_ID = 'page_url';
 
 /** custom_id of the optional image field. */
 export const ATTACHMENTS_ID = 'attachments';
+
+/** custom_id of the expected-behaviour field in the edit modal. */
+export const EXPECTED_ID = 'expected';
+
+/** custom_id of the steps field in the edit modal. */
+export const ACTION_ID = 'action';
 
 /** Prefix that carries the command name across the modal round-trip. */
 export const MODAL_PREFIX = 'issue:';
@@ -121,5 +128,79 @@ export function deferEphemeral() {
   return {
     type: InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
     data: { flags: InteractionResponseFlags.EPHEMERAL },
+  };
+}
+
+function textField(
+  customId: string,
+  label: string,
+  value: string | null,
+  style: number,
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    type: MessageComponentTypes.LABEL,
+    label,
+    component: {
+      type: MessageComponentTypes.INPUT_TEXT,
+      custom_id: customId,
+      style,
+      required: false,
+      value: value ?? '',
+      ...extra,
+    },
+  };
+}
+
+/**
+ * Correcting the model's output directly, without paying for another call.
+ *
+ * Five fields is Discord's ceiling and it is exactly spent. Priority moved to a
+ * dropdown on the card; the due date is left to Todoist, since the model only
+ * fills it in when the reporter actually named one.
+ */
+export function buildEditModal(draft: Draft) {
+  const { issue } = draft;
+  return {
+    type: InteractionResponseType.MODAL,
+    data: {
+      custom_id: draftCustomId('edit', draft.id, true),
+      title: 'Perbaiki issue',
+      components: [
+        textField(TITLE_ID, 'Judul', issue.title, TextStyleTypes.SHORT, {
+          required: true,
+          max_length: 100,
+        }),
+        textField(PAGE_URL_ID, 'Halaman', issue.url, TextStyleTypes.SHORT, { max_length: 500 }),
+        textField(RAW_INPUT_ID, 'Deskripsi', issue.problem, TextStyleTypes.PARAGRAPH, {
+          required: true,
+          max_length: 4000,
+        }),
+        textField(EXPECTED_ID, 'Harapan', issue.expected, TextStyleTypes.PARAGRAPH, {
+          max_length: 1000,
+        }),
+        textField(ACTION_ID, 'Langkah', issue.action, TextStyleTypes.PARAGRAPH, {
+          max_length: 1000,
+        }),
+      ],
+    },
+  };
+}
+
+/** Hands back what the reporter originally wrote, for the model to try again. */
+export function buildRewriteModal(draft: Draft) {
+  return {
+    type: InteractionResponseType.MODAL,
+    data: {
+      custom_id: draftCustomId('rw', draft.id, true),
+      title: 'Tulis ulang',
+      components: [
+        textField(RAW_INPUT_ID, 'Tulisan aslimu', draft.context.rawInput, TextStyleTypes.PARAGRAPH, {
+          required: true,
+          min_length: 10,
+          max_length: 4000,
+        }),
+      ],
+    },
   };
 }

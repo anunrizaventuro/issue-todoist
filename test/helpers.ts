@@ -91,3 +91,44 @@ export function fakeState() {
     },
   };
 }
+
+/**
+ * An in-memory stand-in for the draft binding.
+ *
+ * Records the drafts that were started so a test can assert on what the
+ * reporter would be shown, without reaching for a Durable Object.
+ */
+export function memoryDrafts() {
+  const started: any[] = [];
+  let current: any = null;
+
+  const stub = {
+    start: async (draft: any) => { current = draft; started.push(draft); },
+    read: async () => current,
+    edit: async (fields: any) => {
+      current = { ...current, issue: { ...current.issue, ...fields } };
+      return current;
+    },
+    priority: async (value: number) => {
+      current = { ...current, issue: { ...current.issue, priority: value } };
+      return current;
+    },
+    approve: async () => ({
+      issue: current.issue,
+      task: { id: '42', url: 'https://app.todoist.com/app/task/42' },
+      error: null,
+      normalized: current.context.normalized,
+      subtasksCreated: 0,
+      subtasksFailed: 0,
+      attachmentsUploaded: 0,
+      attachmentsFailed: 0,
+    }),
+    cancel: async () => { current = { ...current, status: 'cancelled' }; return current; },
+  };
+
+  return {
+    started,
+    set: (draft: any) => { current = draft; },
+    binding: { idFromName: () => ({}), get: () => stub },
+  };
+}

@@ -35,6 +35,8 @@ export interface Interaction {
     components?: unknown;
     /** Message id the context menu was invoked on. */
     target_id?: string;
+    /** Values chosen in a select menu. */
+    values?: string[];
     resolved?: {
       attachments?: Record<string, DiscordAttachment>;
       messages?: Record<string, DiscordMessage>;
@@ -95,6 +97,11 @@ export function isGuildAllowed(allowList: string | undefined, guildId: string | 
     .filter(Boolean);
 
   return allowed.length === 0 || (guildId !== undefined && allowed.includes(guildId));
+}
+
+/** Discord user id of whoever triggered the interaction. */
+export function userIdOf(interaction: Interaction): string | undefined {
+  return interaction.member?.user?.id ?? interaction.user?.id;
 }
 
 /** Display name of whoever triggered the interaction. */

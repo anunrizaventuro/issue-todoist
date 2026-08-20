@@ -1,4 +1,9 @@
-import { InteractionResponseType, InteractionType, verifyKey } from 'discord-interactions';
+import {
+  InteractionResponseFlags,
+  InteractionResponseType,
+  InteractionType,
+  verifyKey,
+} from 'discord-interactions';
 import {
   isCommandName,
   MESSAGE_COMMAND_NAME,
@@ -6,14 +11,27 @@ import {
   type CommandName,
 } from './commands.ts';
 import {
+  ACTION_ID,
+  buildEditModal,
   buildIssueModal,
+  buildRewriteModal,
   deferEphemeral,
   ephemeral,
+  EXPECTED_ID,
   MODAL_PREFIX,
   PAGE_URL_ID,
   RAW_INPUT_ID,
   TITLE_ID,
 } from './discord.ts';
+import {
+  isReporter,
+  openDraft,
+  parseDraftCustomId,
+  reviewTimeoutMinutes,
+  type Draft,
+  type DraftAction,
+  type DraftStub,
+} from './draft.ts';
 import { editOriginalResponse } from './followup.ts';
 import {
   attachmentsOf,
@@ -24,11 +42,13 @@ import {
   messageLink,
   sourceLinkOf,
   targetMessageOf,
+  userIdOf,
   type Interaction,
 } from './interaction.ts';
 import type { IssueContext } from './issue.ts';
 import { fileIssue, normalizeSubmission } from './process.ts';
 import { resultMessage } from './result.ts';
+import { cancelledMessage, closedMessage, reviewMessage } from './review.ts';
 import type { Env } from './env.ts';
 
 /** Schedules background work that must outlive the response (Workers: ctx.waitUntil). */
@@ -110,12 +130,24 @@ export async function handleInteraction(
     case InteractionType.MODAL_SUBMIT:
       return handleModalSubmit(interaction, env, waitUntil);
 
+    case InteractionType.MESSAGE_COMPONENT:
+      return handleDraftComponent(interaction, env, waitUntil);
+
     default:
       return new Response('Unhandled interaction type', { status: 400 });
   }
 }
 
-function handleModalSubmit(interaction: Interaction, env: Env, waitUntil: WaitUntil): Response {
+async function handleModalSubmit(
+  interaction: Interaction,
+  env: Env,
+  waitUntil: WaitUntil,
+): Promise<Response> {
+  // The modals a draft card opens carry their own prefix and are answered
+  // by updating that card, not by starting a new submission.
+  const ref = parseDraftCustomId(interaction.data?.custom_id);
+  if (ref?.modal) return handleDraftModal(interaction, env, ref, waitUntil);
+
   const command = interaction.data?.custom_id?.slice(MODAL_PREFIX.length);
   if (!interaction.data?.custom_id?.startsWith(MODAL_PREFIX) || !isCommandName(command)) {
     return json(ephemeral('Form tidak dikenal.'));
@@ -131,7 +163,7 @@ function handleModalSubmit(interaction: Interaction, env: Env, waitUntil: WaitUn
   const typedTitle = findValue(interaction.data.components, TITLE_ID)?.trim() || null;
 
   // ACK now, work later: everything past this point is outside the 3-second budget.
-  waitUntil(createAndReport(interaction, env, command, rawInput, { pageUrl, typedTitle }));
+  waitUntil(createDraftAndReview(interaction, env, command, rawInput, { pageUrl, typedTitle }));
   return json(deferEphemeral());
 }
 
@@ -164,7 +196,7 @@ function handleMessageCommand(
   const clicker = authorOf(interaction);
 
   waitUntil(
-    createAndReport(interaction, env, MESSAGE_COMMAND_TARGET, rawInput, {
+    createDraftAndReview(interaction, env, MESSAGE_COMMAND_TARGET, rawInput, {
       author: writer,
       filedBy: clicker === writer ? null : clicker,
       sourceLink: messageLink(interaction, message.id),
@@ -174,14 +206,20 @@ function handleMessageCommand(
   return json(deferEphemeral());
 }
 
-async function createAndReport(
+/**
+ * Normalizes, then parks the result for review instead of filing it.
+ *
+ * If the draft cannot be stored the submission is filed the old way: a feature
+ * meant to raise quality must never become the reason a report disappears.
+ */
+async function createDraftAndReview(
   interaction: Interaction,
   env: Env,
   command: CommandName,
   rawInput: string,
   overrides?: Partial<Omit<IssueContext, 'normalized' | 'command' | 'rawInput'>>,
 ): Promise<void> {
-  const context = {
+  const submitted = {
     command,
     rawInput,
     author: authorOf(interaction),
@@ -194,9 +232,160 @@ async function createAndReport(
     ...overrides,
   };
 
-  const { issue, context: full } = await normalizeSubmission(env, context);
-  const result = await fileIssue(env, issue, full);
-  await editOriginalResponse(interaction, resultMessage(result, full));
+  const { issue, context } = await normalizeSubmission(env, submitted);
+  const minutes = reviewTimeoutMinutes(env);
+
+  const draft: Draft = {
+    id: crypto.randomUUID(),
+    status: 'pending',
+    issue,
+    context,
+    reporterId: userIdOf(interaction) ?? '',
+    applicationId: interaction.application_id ?? '',
+    token: interaction.token ?? '',
+    taskUrl: null,
+  };
+
+  try {
+    await openDraft(env, draft.id).start(draft, minutes * 60_000);
+  } catch (cause) {
+    console.error('Draft store unavailable, filing directly', cause);
+    const result = await fileIssue(env, issue, context);
+    await editOriginalResponse(interaction, resultMessage(result, context));
+    return;
+  }
+
+  await editOriginalResponse(interaction, reviewMessage(draft, minutes));
+}
+
+/**
+ * Every button and dropdown on a draft card.
+ *
+ * The draft object is the authority on whether an action is still allowed, so
+ * this layer only routes, checks ownership, and picks the response type Discord
+ * expects for each one.
+ */
+async function handleDraftComponent(
+  interaction: Interaction,
+  env: Env,
+  waitUntil: WaitUntil,
+): Promise<Response> {
+  const ref = parseDraftCustomId(interaction.data?.custom_id);
+  if (!ref || ref.modal) return json(ephemeral('Tombol tidak dikenal.'));
+
+  const stub = openDraft(env, ref.id);
+  const draft = await stub.read();
+  if (!draft) return json(ephemeral('Draft ini tidak ditemukan — mungkin sudah lama sekali.'));
+  if (!isReporter(draft, userIdOf(interaction))) return json(ephemeral('Ini bukan draft kamu.'));
+  if (draft.status !== 'pending') return json(update(closedMessage(draft)));
+
+  switch (ref.action) {
+    case 'ok':
+      // Todoist is far too slow for the 3-second budget.
+      waitUntil(approveDraft(interaction, stub));
+      return json({ type: InteractionResponseType.DEFERRED_UPDATE_MESSAGE });
+
+    case 'edit':
+      return json(buildEditModal(draft));
+
+    case 'rw':
+      return json(buildRewriteModal(draft));
+
+    case 'pr': {
+      const next = await stub.priority(Number(interaction.data?.values?.[0]));
+      return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
+    }
+
+    case 'x': {
+      const cancelled = await stub.cancel();
+      return json(update(cancelled ? cancelledMessage(cancelled) : closedMessage(draft)));
+    }
+  }
+}
+
+async function approveDraft(interaction: Interaction, stub: DraftStub): Promise<void> {
+  const result = await stub.approve();
+  const draft = await stub.read();
+
+  if (!draft) {
+    // Nothing left to describe, but the reporter is still watching a spinner.
+    await editOriginalResponse(interaction, {
+      content: 'Draft ini tidak ditemukan lagi.',
+      components: [],
+      flags: InteractionResponseFlags.EPHEMERAL,
+    });
+    return;
+  }
+  if (result === 'closed') {
+    await editOriginalResponse(interaction, closedMessage(draft));
+    return;
+  }
+
+  await editOriginalResponse(interaction, resultMessage(result, draft.context));
+}
+
+/** The two modals a draft card can open. */
+async function handleDraftModal(
+  interaction: Interaction,
+  env: Env,
+  ref: { action: DraftAction; id: string },
+  waitUntil: WaitUntil,
+): Promise<Response> {
+  const stub = openDraft(env, ref.id);
+  const draft = await stub.read();
+  if (!draft) return json(ephemeral('Draft ini tidak ditemukan.'));
+  if (!isReporter(draft, userIdOf(interaction))) return json(ephemeral('Ini bukan draft kamu.'));
+  if (draft.status !== 'pending') return json(update(closedMessage(draft)));
+
+  const components = interaction.data?.components;
+
+  if (ref.action === 'edit') {
+    const next = await stub.edit({
+      title: findValue(components, TITLE_ID)?.trim() || draft.issue.title,
+      url: findValue(components, PAGE_URL_ID)?.trim() || null,
+      problem: findValue(components, RAW_INPUT_ID)?.trim() || draft.issue.problem,
+      expected: findValue(components, EXPECTED_ID)?.trim() || null,
+      action: findValue(components, ACTION_ID)?.trim() || null,
+    });
+    // No provider call, so this is fast enough to answer inline.
+    return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
+  }
+
+  const rawInput = findValue(components, RAW_INPUT_ID)?.trim() ?? '';
+  if (rawInput.length < MIN_ISSUE_LENGTH) {
+    return json(ephemeral('Issue-nya terlalu pendek. Tolong tulis sedikit lebih detail.'));
+  }
+
+  waitUntil(rewriteDraft(interaction, env, stub, draft, rawInput));
+  return json({ type: InteractionResponseType.DEFERRED_UPDATE_MESSAGE });
+}
+
+/** A second pass through the model, which costs the same wait as the first. */
+async function rewriteDraft(
+  interaction: Interaction,
+  env: Env,
+  stub: DraftStub,
+  draft: Draft,
+  rawInput: string,
+): Promise<void> {
+  const { issue } = await normalizeSubmission(env, { ...draft.context, rawInput });
+  const next = await stub.edit({
+    title: issue.title,
+    url: issue.url,
+    problem: issue.problem,
+    expected: issue.expected,
+    action: issue.action,
+  });
+
+  await editOriginalResponse(
+    interaction,
+    next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft),
+  );
+}
+
+/** Replaces the card the button was attached to. */
+function update(body: Record<string, unknown>) {
+  return { type: InteractionResponseType.UPDATE_MESSAGE, data: body };
 }
 
 export function json(body: unknown, status = 200): Response {
