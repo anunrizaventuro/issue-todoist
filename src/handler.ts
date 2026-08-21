@@ -4,6 +4,7 @@ import {
   InteractionType,
   verifyKey,
 } from 'discord-interactions';
+import { CONFIG } from './config.ts';
 import {
   isCommandName,
   MESSAGE_COMMAND_NAME,
@@ -113,7 +114,7 @@ export async function handleInteraction(
   // endpoint in Discord.
   if (
     interaction.type !== InteractionType.PING &&
-    !isGuildAllowed(env.ALLOWED_GUILD_IDS, interaction.guild_id)
+    !isGuildAllowed(CONFIG.discord.guildIds, interaction.guild_id)
   ) {
     return json(ephemeral('Bot ini belum diaktifkan untuk server ini.'));
   }

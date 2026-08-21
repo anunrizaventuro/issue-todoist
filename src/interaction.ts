@@ -86,17 +86,15 @@ export function attachmentsOf(interaction: Interaction): DiscordAttachment[] {
 /**
  * Whether this guild may file issues.
  *
- * An empty list means unrestricted — the documented development default, and
- * what every existing deployment already has configured. A guild-less
- * interaction (a DM) has nothing to match, so it is refused once a list is set.
+ * An empty list means unrestricted — the documented development default. A
+ * guild-less interaction (a DM) has nothing to match, so it is refused once a
+ * list is set.
  */
-export function isGuildAllowed(allowList: string | undefined, guildId: string | undefined): boolean {
-  const allowed = (allowList ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-
-  return allowed.length === 0 || (guildId !== undefined && allowed.includes(guildId));
+export function isGuildAllowed(
+  allowList: readonly string[],
+  guildId: string | undefined,
+): boolean {
+  return allowList.length === 0 || (guildId !== undefined && allowList.includes(guildId));
 }
 
 /** Discord user id of whoever triggered the interaction. */

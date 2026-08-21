@@ -9,8 +9,6 @@ export interface Env {
   LLM_MODEL: string;
   LLM_API_KEY: string;
   TODOIST_API_TOKEN: string;
-  /** Comma-separated guild IDs. Empty string disables the check (dev only). */
-  ALLOWED_GUILD_IDS: string;
   /** One Durable Object per draft awaiting review. */
   DRAFTS: DraftBinding;
   /** Minutes before an untouched draft files itself. Capped at 14. */

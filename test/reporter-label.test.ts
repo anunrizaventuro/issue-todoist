@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fileIssue } from '../src/process.ts';
 import { fromRawInput, type IssueContext } from '../src/issue.ts';
 import { REVIEW_LABEL, reporterLabels } from '../src/todoist.ts';
-import { captureFetch, env } from './helpers.ts';
+import { captureFetch, env, GUILD } from './helpers.ts';
 
 /** A filed-by-nobody-else submission; each test overrides what it cares about. */
 function context(overrides: Partial<IssueContext> = {}): IssueContext {
@@ -120,7 +120,7 @@ test('a right-clicked message labels the writer and the person who filed it', as
         type: 2,
         application_id: '1',
         token: 'tok',
-        guild_id: 'g',
+        guild_id: GUILD,
         channel_id: 'c',
         member: { user: { username: 'anun', global_name: 'Anun' } },
         data: {

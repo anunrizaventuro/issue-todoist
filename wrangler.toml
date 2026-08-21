@@ -10,10 +10,10 @@ compatibility_flags = ["nodejs_compat"]
 # LLM_BASE_URL is the root of any OpenAI-compatible API, without
 # `/chat/completions` — e.g. https://openrouter.ai/api/v1. Empty here means
 # reports are filed as raw text instead of being normalized.
-# Comma-separated Discord server IDs allowed to file issues. Empty means any
-# server that adds the app can write into the Todoist project, so keep it set.
+#
+# The Discord servers allowed to file issues and the Todoist project they file
+# into are not secrets and live in src/config.ts.
 [vars]
-ALLOWED_GUILD_IDS = "1392070580534251621"
 LLM_BASE_URL = ""
 LLM_MODEL = ""
 # Minutes before an untouched draft files itself. Must stay under 15: the Discord

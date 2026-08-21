@@ -1,5 +1,14 @@
 import { generateKeyPairSync, sign } from 'node:crypto';
+import { CONFIG } from '../src/config.ts';
 import type { Env } from '../src/env.ts';
+
+/**
+ * The server every payload in the suite pretends to come from.
+ *
+ * The allowlist lives in config.ts and is no longer injectable, so a test
+ * payload without a guild is refused before it reaches what it means to test.
+ */
+export const GUILD = CONFIG.discord.guildIds[0]!;
 
 // Discord signs `timestamp + rawBody` with Ed25519. Generating our own keypair
 // exercises the real verification path without any real credentials.
@@ -16,7 +25,6 @@ export const env: Env = {
   LLM_MODEL: '',
   LLM_API_KEY: '',
   TODOIST_API_TOKEN: 'unused',
-  ALLOWED_GUILD_IDS: '',
   // Replaced per test by anything exercising the draft flow.
   DRAFTS: {
     idFromName: () => ({}),

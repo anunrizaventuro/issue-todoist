@@ -4,6 +4,8 @@
  * Adding `/bug`, `/design`, ... means adding an entry here and re-running
  * `npm run register`. The LLM never picks the project — routing is code's job.
  */
+import { CONFIG } from './config.ts';
+
 export interface CommandConfig {
   /** Todoist project the issue is filed into. */
   projectId: string;
@@ -21,7 +23,7 @@ export interface CommandConfig {
 
 export const COMMANDS = {
   issue: {
-    projectId: '6hHmCp3r5qgFW9Q4',
+    projectId: CONFIG.todoist.projectId,
     labels: ['discord'],
     modalTitle: 'Input Issue',
     fieldLabel: 'Deskripsi',

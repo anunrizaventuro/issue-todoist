@@ -4,7 +4,7 @@ import test from 'node:test';
 import { COMMANDS } from '../src/commands.ts';
 import { MAX_ATTACHMENTS } from '../src/discord.ts';
 import { handleInteraction } from '../src/handler.ts';
-import { env, noopWaitUntil, signed } from './helpers.ts';
+import { env, GUILD, noopWaitUntil, signed } from './helpers.ts';
 
 const APPLICATION_COMMAND = 2;
 const RESPONSE_MODAL = 9;
@@ -17,12 +17,12 @@ const STYLE_SHORT = 1;
 const call = (req: Request) => handleInteraction(req, env, noopWaitUntil);
 
 async function modalComponents(): Promise<any[]> {
-  const res = await call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
+  const res = await call(signed({ type: APPLICATION_COMMAND, guild_id: GUILD, data: { name: 'issue' } }));
   return ((await res.json()) as any).data.components;
 }
 
 const openModal = () =>
-  call(signed({ type: APPLICATION_COMMAND, data: { name: 'issue' } }));
+  call(signed({ type: APPLICATION_COMMAND, guild_id: GUILD, data: { name: 'issue' } }));
 
 /** By custom_id rather than position, so reordering the form breaks nothing. */
 async function field(customId: string): Promise<any> {

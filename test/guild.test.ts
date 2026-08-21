@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test, { after, before, beforeEach } from 'node:test';
 
+import { CONFIG } from '../src/config.ts';
 import { handleInteraction } from '../src/handler.ts';
 import { isGuildAllowed } from '../src/interaction.ts';
-import { captureFetch, env, noopWaitUntil, signed } from './helpers.ts';
+import { captureFetch, env, signed } from './helpers.ts';
 
 const PING = 1;
 const APPLICATION_COMMAND = 2;
@@ -13,15 +14,15 @@ const RESPONSE_PONG = 1;
 const RESPONSE_MESSAGE = 4;
 const RESPONSE_MODAL = 9;
 
-/** Only this guild may file issues. */
-const guarded = { ...env, ALLOWED_GUILD_IDS: 'g1, g2' };
+/** The allowlist is config.ts now, so the tests read it rather than inject one. */
+const ALLOWED = CONFIG.discord.guildIds[0]!;
 
 let outbound: ReturnType<typeof captureFetch>;
 before(() => { outbound = captureFetch(); });
 beforeEach(() => { outbound.sent.length = 0; });
 after(() => outbound.restore());
 
-async function call(payload: unknown, e = guarded) {
+async function call(payload: unknown, e = env) {
   const deferred: Promise<unknown>[] = [];
   const res = await handleInteraction(signed(payload), e, (p) => deferred.push(p));
   return { body: (await res.json()) as any, deferred };
@@ -39,8 +40,8 @@ test('a PING is answered even though it carries no guild', async () => {
   assert.equal(body.type, RESPONSE_PONG);
 });
 
-test('a command from a listed guild opens the modal as usual', async () => {
-  const { body } = await call(slash('g1'));
+test('a command from the configured guild opens the modal as usual', async () => {
+  const { body } = await call(slash(ALLOWED));
   assert.equal(body.type, RESPONSE_MODAL);
 });
 
@@ -50,15 +51,10 @@ test('a command from an unlisted guild is refused', async () => {
   assert.equal(body.data.flags, 64, 'the refusal must be ephemeral');
 });
 
-test('a command with no guild at all is refused once a list is set', async () => {
+test('a command with no guild at all is refused', async () => {
   // Interactions in DMs carry no guild_id, so there is nothing to match.
   const { body } = await call(slash(undefined));
   assert.equal(body.type, RESPONSE_MESSAGE);
-});
-
-test('an empty allowlist still allows any guild', async () => {
-  const { body } = await call(slash('anything'), env);
-  assert.equal(body.type, RESPONSE_MODAL);
 });
 
 test('a modal submitted from an unlisted guild files nothing', async () => {
@@ -99,9 +95,9 @@ test('a right-click from an unlisted guild files nothing', async () => {
   assert.equal(deferred.length, 0);
 });
 
-test('isGuildAllowed ignores blanks and spacing in the list', () => {
-  assert.equal(isGuildAllowed(' g1 , , g2,', 'g2'), true);
-  assert.equal(isGuildAllowed(' g1 , , g2,', 'g3'), false);
-  assert.equal(isGuildAllowed('   ', 'anything'), true, 'blank means unrestricted');
-  assert.equal(isGuildAllowed('g1', undefined), false);
+test('isGuildAllowed matches against the configured list', () => {
+  assert.equal(isGuildAllowed(['g1', 'g2'], 'g2'), true);
+  assert.equal(isGuildAllowed(['g1', 'g2'], 'g3'), false);
+  assert.equal(isGuildAllowed([], 'anything'), true, 'an empty list means unrestricted');
+  assert.equal(isGuildAllowed(['g1'], undefined), false);
 });

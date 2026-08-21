@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test, { after, before } from 'node:test';
 
 import { handleInteraction } from '../src/handler.ts';
-import { captureFetch, env, signed } from './helpers.ts';
+import { captureFetch, env, GUILD, signed } from './helpers.ts';
 
 let outbound: ReturnType<typeof captureFetch>;
 before(() => { outbound = captureFetch(); });
@@ -18,7 +18,7 @@ function rightClick(content: string, attachments: unknown[] = []) {
     type: APPLICATION_COMMAND,
     application_id: '1',
     token: 'tok',
-    guild_id: 'g',
+    guild_id: GUILD,
     channel_id: 'c',
     member: { user: { username: 'anun' } },
     data: {

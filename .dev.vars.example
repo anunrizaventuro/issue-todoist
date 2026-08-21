@@ -21,12 +21,10 @@ LLM_API_KEY=
 # Todoist → Settings → Integrations → Developer → API token
 TODOIST_API_TOKEN=
 
-# Comma-separated Discord server IDs allowed to use the commands.
-# Leave empty to allow any guild (development only).
-ALLOWED_GUILD_IDS=
+# Which Discord servers may file issues, and which Todoist project they land
+# in, are set in src/config.ts — not here.
 
 # Only used by `npm run register` (never read by the Worker).
 # Discord → Developer Portal → Bot → Reset Token
 DISCORD_BOT_TOKEN=
 DISCORD_APP_ID=
-DISCORD_GUILD_ID=

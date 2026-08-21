@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test, { after, before, beforeEach } from 'node:test';
 
+import { CONFIG } from '../src/config.ts';
 import { handleInteraction } from '../src/handler.ts';
 import { findValue } from '../src/interaction.ts';
-import { captureFetch, env, memoryDrafts, signed } from './helpers.ts';
+import { captureFetch, env, GUILD, memoryDrafts, signed } from './helpers.ts';
 
 let outbound: ReturnType<typeof captureFetch>;
 before(() => { outbound = captureFetch(); });
@@ -22,6 +23,7 @@ function submission(
 ) {
   return {
     type: MODAL_SUBMIT,
+    guild_id: GUILD,
     application_id: '1',
     token: 'tok',
     data: {
@@ -146,6 +148,17 @@ test('with no draft store reachable the report is filed the old way', async () =
   await Promise.all(deferred);
 
   assert.ok(filedTask(), 'the issue must still reach Todoist');
+});
+
+test('the task lands in the project named in config.ts', async () => {
+  // The destination lives in one file; nothing downstream may hold its own copy.
+  const { deferred } = await call(submission('tombol checkout ketutup navbar di mobile'), {
+    ...env,
+    DRAFTS: { idFromName: () => ({}), get: () => { throw new Error('down'); } },
+  });
+  await Promise.all(deferred);
+
+  assert.equal(filedTask().project_id, CONFIG.todoist.projectId);
 });
 
 test('the why field reaches the draft verbatim', async () => {

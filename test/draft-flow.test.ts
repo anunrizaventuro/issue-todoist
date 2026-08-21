@@ -235,7 +235,7 @@ test('a draft button from another guild never reaches the draft store', async ()
   const payload = click('ok');
   payload.guild_id = '999';
 
-  const { body } = await call(payload, { ...env, ALLOWED_GUILD_IDS: '1392070580534251621' });
+  const { body } = await call(payload, env);
   assert.match(body.data.content, /belum diaktifkan/i);
 });
 
