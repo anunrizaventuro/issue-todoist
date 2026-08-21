@@ -56,7 +56,7 @@ export const CONFIG = {
      * redeploy. IDs come from right-clicking the channel → Copy Channel ID.
      */
     channels: {
-      // '1401234567890123456': '6xYzAb9c1dEfGh2K',  // #laporan-bug
+      '1512274401931034655': '6h8gXQGqrXxhj96c',  // VENTURO #officia → Officia
     },
   },
 } satisfies Config;

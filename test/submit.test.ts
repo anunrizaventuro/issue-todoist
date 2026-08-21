@@ -166,12 +166,12 @@ test('a report from an unmapped channel lands in the default project', async () 
   assert.equal(filedTask().project_id, CONFIG.todoist.defaultProjectId);
 });
 
-test('while the channel map is empty no task is labelled for routing', async () => {
-  // The default is the intended destination until real pairs exist, so the
-  // label must stay meaningful rather than land on every single task.
+test('a report from an unmapped channel is labelled for routing', async () => {
+  // Now that real pairs exist, the default project is a fallback rather than
+  // the destination, and these must stay findable in it.
   await fileFromUnmappedChannel();
   assert.ok(
-    !filedTask().labels.includes(ROUTING_LABEL),
+    filedTask().labels.includes(ROUTING_LABEL),
     `labels were ${JSON.stringify(filedTask().labels)}`,
   );
 });
