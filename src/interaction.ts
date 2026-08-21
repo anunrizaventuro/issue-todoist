@@ -25,6 +25,8 @@ export interface Interaction {
   token?: string;
   guild_id?: string;
   channel_id?: string;
+  /** Present alongside `channel_id`; `parent_id` is set when this is a thread. */
+  channel?: { id?: string; parent_id?: string };
   member?: { user?: { id?: string; username?: string; global_name?: string } };
   user?: { id?: string; username?: string; global_name?: string };
   data?: {

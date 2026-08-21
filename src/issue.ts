@@ -48,6 +48,14 @@ export interface IssueContext {
   /** Discord handle behind `filedBy`, on the same terms as `authorUsername`. */
   filedByUsername: string | null;
   sourceLink: string | null;
+  /**
+   * Channel the report was filed in, which decides the Todoist project.
+   * Optional because drafts stored before routing existed carry none — those
+   * take the default project, same as any unmapped channel.
+   */
+  channelId?: string | null;
+  /** Parent channel when `channelId` is a thread, so a mapped channel covers it. */
+  channelParentId?: string | null;
   /** Title typed into the form. Outranks the one the model produced. */
   typedTitle: string | null;
   /** URL typed into the form. Outranks whatever the model found in the text. */

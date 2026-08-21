@@ -1,14 +1,11 @@
 /**
- * Every slash command maps deterministically to one Todoist destination.
+ * Every slash command and the wording Discord shows for it.
  *
  * Adding `/bug`, `/design`, ... means adding an entry here and re-running
- * `npm run register`. The LLM never picks the project — routing is code's job.
+ * `npm run register`. Where an issue lands is not decided here: that follows
+ * the channel it was filed in, via the map in config.ts.
  */
-import { CONFIG } from './config.ts';
-
 export interface CommandConfig {
-  /** Todoist project the issue is filed into. */
-  projectId: string;
   /** Labels applied to every task from this command. */
   labels: string[];
   /** Modal heading. Discord caps this at 45 characters. */
@@ -23,7 +20,6 @@ export interface CommandConfig {
 
 export const COMMANDS = {
   issue: {
-    projectId: CONFIG.todoist.projectId,
     labels: ['discord'],
     modalTitle: 'Input Issue',
     fieldLabel: 'Deskripsi',

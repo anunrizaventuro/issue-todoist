@@ -1,10 +1,10 @@
 interface Config {
   discord: {
     guildIds: readonly string[];
-    channelId: string;
   };
   todoist: {
-    projectId: string;
+    defaultProjectId: string;
+    channels: Readonly<Record<string, string>>;
   };
 }
 
@@ -24,28 +24,39 @@ export const CONFIG = {
      * installs the commands into.
      *
      * An empty list disables the check entirely — every server that adds the
-     * app could then write into the Todoist project below, so keep it filled.
+     * app could then write into the Todoist projects below, so keep it filled.
      * Copy an ID with Developer Mode on: right-click the server → Copy Server ID.
      */
-    guildIds: ['1392070580534251621'],
-
-    /**
-     * Where the team is expected to use the bot. Nothing reads this — it is a
-     * note for whoever comes back to this file in six months. The bot answers
-     * in any channel of the servers above; to genuinely restrict it, use
-     * Server Settings → Integrations → the app, which needs no redeploy.
-     */
-    channelId: '',
+    guildIds: ['1392070580534251621', '940451541037490256'],
   },
 
   todoist: {
     /**
-     * The project every issue is filed into.
+     * Where a report goes when its channel is not in the map below.
      *
      * The tail of the project's URL in the Todoist web app:
      * `https://app.todoist.com/app/project/<name>-<id>`. The account behind
      * `TODOIST_API_TOKEN` must be able to write to it.
      */
-    projectId: '6hHmCp3r5qgFW9Q4',
+    defaultProjectId: '6hHmCp3r5qgFW9Q4',
+
+    /**
+     * Discord channel → Todoist project. This is what makes the destination
+     * follow the place the report was written, and with it whoever can see
+     * that channel: Discord already decides who may run a command where, so
+     * the map needs no permission logic of its own.
+     *
+     * Threads are covered by their parent channel, so a channel listed here
+     * takes its threads and forum posts with it.
+     *
+     * Ships empty on purpose: every report then goes to `defaultProjectId`,
+     * exactly as before routing existed. Once there is at least one pair, an
+     * unlisted channel still takes the default but its task is labelled
+     * `needs-routing`, so the catch-all can be swept. Adding a pair means a
+     * redeploy. IDs come from right-clicking the channel → Copy Channel ID.
+     */
+    channels: {
+      // '1401234567890123456': '6xYzAb9c1dEfGh2K',  // #laporan-bug
+    },
   },
 } satisfies Config;

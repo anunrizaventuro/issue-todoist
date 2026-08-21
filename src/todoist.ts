@@ -1,4 +1,5 @@
 import { COMMANDS, type CommandName } from './commands.ts';
+import { CONFIG } from './config.ts';
 import { renderDescription, type IssueContext, type NormalizedIssue } from './issue.ts';
 import type { DiscordAttachment } from './interaction.ts';
 
@@ -9,6 +10,9 @@ export const TRIAGE_LABEL = 'needs-triage';
 
 /** Applied when nobody approved the draft in time and the alarm filed it. */
 export const REVIEW_LABEL = 'needs-review';
+
+/** Applied when a mapped setup had no entry for the channel, so the catch-all stays searchable. */
+export const ROUTING_LABEL = 'needs-routing';
 
 /** Whose problem it is. */
 export const REPORTER_PREFIX = 'dari-';
@@ -54,13 +58,39 @@ export function reporterLabels(context: IssueContext): string[] {
   ].filter((label): label is string => label !== null);
 }
 
+/**
+ * Where a report goes, and whether that was a decision or a fallback.
+ *
+ * The parent is consulted second, so mapping a channel takes its threads and
+ * forum posts with it — Discord sends a thread's own id as `channel_id`, and
+ * nobody filling in the map thinks of the threads that do not exist yet. A
+ * thread listed in its own right still wins.
+ *
+ * `needsRouting` is false while the map is empty: that is how the bot ships,
+ * the default is then the only intended destination, and a label on every
+ * single task would mark nothing at all.
+ */
+export function destinationFor(
+  todoist: { defaultProjectId: string; channels: Readonly<Record<string, string>> },
+  channelId: string | null | undefined,
+  parentId: string | null | undefined,
+): { projectId: string; needsRouting: boolean } {
+  const mapped =
+    (channelId && todoist.channels[channelId]) || (parentId && todoist.channels[parentId]);
+
+  if (mapped) return { projectId: mapped, needsRouting: false };
+
+  const routing = Object.keys(todoist.channels).length > 0;
+  return { projectId: todoist.defaultProjectId, needsRouting: routing };
+}
+
 export interface CreatedTask {
   id: string;
   url: string;
 }
 
 /**
- * Creates the task.
+ * Creates the task in the project its channel maps to.
  *
  * Verified against the API on 2026-08-18: the response carries no `url` field,
  * so the link is built from the id. The legacy `todoist.com/showTask?id=` form
@@ -79,6 +109,13 @@ export async function createTask(
   const labels = [...COMMANDS[command].labels, ...extraLabels, ...reporterLabels(context)];
   if (!context.normalized) labels.push(TRIAGE_LABEL);
 
+  const destination = destinationFor(
+    CONFIG.todoist,
+    context.channelId,
+    context.channelParentId,
+  );
+  if (destination.needsRouting) labels.push(ROUTING_LABEL);
+
   const res = await fetch(`${API}/tasks`, {
     method: 'POST',
     headers: {
@@ -88,7 +125,7 @@ export async function createTask(
     body: JSON.stringify({
       content: issue.title,
       description: renderDescription(issue, context, unattached),
-      project_id: COMMANDS[command].projectId,
+      project_id: destination.projectId,
       labels,
       priority: issue.priority,
     }),

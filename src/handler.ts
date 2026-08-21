@@ -245,6 +245,8 @@ async function createDraftAndReview(
     filedBy: null,
     filedByUsername: null,
     sourceLink: sourceLinkOf(interaction),
+    channelId: interaction.channel_id ?? null,
+    channelParentId: interaction.channel?.parent_id ?? null,
     // Only the modal has these fields; the context menu leaves them to the model.
     typedTitle: null,
     pageUrl: null,

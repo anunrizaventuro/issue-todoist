@@ -4,6 +4,7 @@ import test, { after, before, beforeEach } from 'node:test';
 import { CONFIG } from '../src/config.ts';
 import { handleInteraction } from '../src/handler.ts';
 import { findValue } from '../src/interaction.ts';
+import { ROUTING_LABEL } from '../src/todoist.ts';
 import { captureFetch, env, GUILD, memoryDrafts, signed } from './helpers.ts';
 
 let outbound: ReturnType<typeof captureFetch>;
@@ -24,6 +25,7 @@ function submission(
   return {
     type: MODAL_SUBMIT,
     guild_id: GUILD,
+    channel_id: 'c-tak-terpetakan',
     application_id: '1',
     token: 'tok',
     data: {
@@ -150,15 +152,35 @@ test('with no draft store reachable the report is filed the old way', async () =
   assert.ok(filedTask(), 'the issue must still reach Todoist');
 });
 
-test('the task lands in the project named in config.ts', async () => {
-  // The destination lives in one file; nothing downstream may hold its own copy.
+async function fileFromUnmappedChannel(): Promise<void> {
   const { deferred } = await call(submission('tombol checkout ketutup navbar di mobile'), {
     ...env,
     DRAFTS: { idFromName: () => ({}), get: () => { throw new Error('down'); } },
   });
   await Promise.all(deferred);
+}
 
-  assert.equal(filedTask().project_id, CONFIG.todoist.projectId);
+test('a report from an unmapped channel lands in the default project', async () => {
+  // The destination lives in one file; nothing downstream may hold its own copy.
+  await fileFromUnmappedChannel();
+  assert.equal(filedTask().project_id, CONFIG.todoist.defaultProjectId);
+});
+
+test('while the channel map is empty no task is labelled for routing', async () => {
+  // The default is the intended destination until real pairs exist, so the
+  // label must stay meaningful rather than land on every single task.
+  await fileFromUnmappedChannel();
+  assert.ok(
+    !filedTask().labels.includes(ROUTING_LABEL),
+    `labels were ${JSON.stringify(filedTask().labels)}`,
+  );
+});
+
+test('the channel the report came from reaches the draft', async () => {
+  // Without this the map is consulted with an empty channel and every report
+  // silently takes the default, however carefully the map is filled in.
+  const draft = await submitToDraft(submission('tombol checkout ketutup navbar di mobile'));
+  assert.equal(draft.context.channelId, 'c-tak-terpetakan');
 });
 
 test('the why field reaches the draft verbatim', async () => {
