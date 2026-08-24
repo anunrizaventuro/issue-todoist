@@ -114,9 +114,8 @@ export function closedMessage(draft: Draft): Record<string, unknown> {
         color: GREY,
       },
     ],
-    components: draft.taskUrl
-      ? [{ type: 1, components: [{ type: 2, style: 5, label: 'Buka di Todoist', url: draft.taskUrl }] }]
-      : [],
+    // No Todoist link, for the same reason resultMessage carries none.
+    components: [],
     flags: InteractionResponseFlags.EPHEMERAL,
   };
 }

@@ -93,12 +93,13 @@ test('an un-normalized draft is flagged rather than presented as tidy', () => {
   assert.match(JSON.stringify(message.embeds[0]), /belum dirapikan|tidak sempat merapikan/i);
 });
 
-test('a closed draft offers its task instead of dead buttons', () => {
+test('a closed draft renders without buttons at all', () => {
+  // Neither the stale draft actions nor a Todoist link the reporter cannot open.
   const message: any = closedMessage(
     draft({ status: 'filed', taskUrl: 'https://app.todoist.com/app/task/9' }),
   );
-  assert.equal(flat(message).length, 1);
-  assert.equal(flat(message)[0].url, 'https://app.todoist.com/app/task/9');
+  assert.equal(flat(message).length, 0);
+  assert.doesNotMatch(JSON.stringify(message), /todoist\.com/);
   assert.ok(!JSON.stringify(message).includes(`d:ok:${ID}`), 'buttons must be gone');
 });
 

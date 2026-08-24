@@ -14,8 +14,12 @@ compatibility_flags = ["nodejs_compat"]
 # The Discord servers allowed to file issues and the Todoist project they file
 # into are not secrets and live in src/config.ts.
 [vars]
-LLM_BASE_URL = ""
-LLM_MODEL = ""
+# Produksi memakai provider cloud karena Worker berjalan di edge Cloudflare dan
+# tidak bisa menjangkau gateway internal di alamat privat. Untuk pengembangan
+# lokal, `.dev.vars` menimpa dua nilai ini, jadi `wrangler dev` tetap memakai
+# gateway sendiri tanpa mengubah baris ini.
+LLM_BASE_URL = "https://openrouter.ai/api/v1"
+LLM_MODEL = "google/gemini-3.7-flash"
 # Minutes before an untouched draft files itself. Must stay under 15: the Discord
 # interaction token expires then, and the alarm could no longer replace the draft
 # card with the result.

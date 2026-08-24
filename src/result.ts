@@ -12,6 +12,10 @@ const RED = 0xef4444;
  *
  * When Todoist rejects the task the user still gets their full text back, so a
  * failure never costs them what they wrote.
+ *
+ * Carries no link to the task: it lives in the project behind
+ * TODOIST_API_TOKEN, and a reporter outside that workspace only reaches "task
+ * not found". Confirmation and the title are what they actually need.
  */
 export function resultMessage(
   result: ProcessResult,
@@ -67,14 +71,6 @@ export function resultMessage(
         ),
         color: tidied ? GREEN : AMBER,
         ...(notes.length > 0 ? { footer: { text: notes.join(' · ') } } : {}),
-      },
-    ],
-    components: [
-      {
-        type: 1, // Action Row — still the correct container for buttons in messages.
-        components: [
-          { type: 2, style: 5, label: 'Buka di Todoist', url: result.task.url },
-        ],
       },
     ],
     flags: InteractionResponseFlags.EPHEMERAL,

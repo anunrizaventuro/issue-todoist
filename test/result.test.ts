@@ -64,12 +64,20 @@ test('a report the model never touched says so, instead of claiming it was tidie
   assert.match(body.embeds[0].title, /belum dirapikan/i);
 });
 
-test('an un-normalized report is still filed, with its Todoist link intact', async () => {
+test('an un-normalized report is still filed, and still shows what was recorded', async () => {
   // The distinction is a warning, not a failure — the task exists either way.
   const body = resultMessage(filed({ normalized: false }), context) as any;
 
-  assert.equal(body.components[0].components[0].url, 'https://app.todoist.com/app/task/42');
   assert.match(body.embeds[0].description, /Checkout tertutup navbar/);
+});
+
+test('the reply offers no Todoist link, which most reporters cannot open anyway', async () => {
+  // Tasks live in the project behind TODOIST_API_TOKEN. A reporter outside that
+  // workspace gets "task not found", so the button reads as a broken promise.
+  // The embed already carries what they need: confirmation and the title.
+  const body = resultMessage(filed(), context) as any;
+
+  assert.doesNotMatch(JSON.stringify(body), /todoist\.com/);
 });
 
 test('a normalized report keeps the plain success reply', async () => {

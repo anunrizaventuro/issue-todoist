@@ -202,7 +202,7 @@ test('a click on a finished draft offers the task instead of acting', async () =
 
   assert.equal(body.type, RESPONSE_UPDATE);
   assert.match(JSON.stringify(body.data), /sudah/);
-  assert.match(JSON.stringify(body.data), /task\/9/);
+  assert.doesNotMatch(JSON.stringify(body.data), /todoist\.com/);
 });
 
 test('someone who is not the reporter is refused', async () => {
