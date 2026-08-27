@@ -209,3 +209,31 @@ test('a title longer than Todoist keeps is clipped, not dropped', async () => {
 });
 
 
+
+/** The public note, addressed to everyone in the channel. */
+const announcementAt = () =>
+  outbound.sent.findIndex(
+    (r) => r.url.includes('/webhooks/') && !r.url.includes('/messages/@original'),
+  );
+
+/** The private card, addressed to the reporter alone. */
+const cardEditAt = () => outbound.sent.findIndex((r) => r.url.includes('/messages/@original'));
+
+test('a report filed without a draft store is still announced to the channel', async () => {
+  // The shared env has no draft store, so this is the direct-file fallback —
+  // the reporter never sees a review card, and the channel would otherwise
+  // never hear that an issue was filed at all.
+  const { deferred } = await call(submission('tombol checkout ketutup navbar di mobile'));
+  await Promise.all(deferred);
+
+  assert.ok(announcementAt() >= 0, 'the channel must be told');
+  assert.ok(cardEditAt() < announcementAt(), 'the card edit must come first');
+});
+
+test('the announcement carries no ephemeral flag, or nobody else sees it', async () => {
+  const { deferred } = await call(submission('tombol checkout ketutup navbar di mobile'));
+  await Promise.all(deferred);
+
+  const announcement = outbound.sent[announcementAt()]!;
+  assert.ok(((announcement.body.flags ?? 0) & 64) === 0, 'ephemeral would defeat the purpose');
+});

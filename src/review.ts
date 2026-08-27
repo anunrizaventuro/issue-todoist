@@ -1,6 +1,7 @@
 import { InteractionResponseFlags } from 'discord-interactions';
 import { draftCustomId, type Draft } from './draft.ts';
 import { truncate } from './followup.ts';
+import { todoistButton } from './result.ts';
 
 const BLUE = 0x3b82f6;
 const AMBER = 0xf59e0b;
@@ -114,8 +115,9 @@ export function closedMessage(draft: Draft): Record<string, unknown> {
         color: GREY,
       },
     ],
-    // No Todoist link, for the same reason resultMessage carries none.
-    components: [],
+    // The draft's own actions are gone — they would act on something already
+    // filed — but the link still leads somewhere, so it stays.
+    components: draft.taskUrl ? [todoistButton(draft.taskUrl)] : [],
     flags: InteractionResponseFlags.EPHEMERAL,
   };
 }

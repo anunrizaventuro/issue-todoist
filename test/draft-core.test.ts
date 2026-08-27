@@ -43,6 +43,16 @@ function core() {
 const todoistCalls = (o: ReturnType<typeof captureFetch>) =>
   o.sent.filter((r) => r.url.includes('todoist') && !r.body?.parent_id).length;
 
+/** The private card, addressed to the reporter alone. */
+const cardEditAt = (o: ReturnType<typeof captureFetch>) =>
+  o.sent.findIndex((r) => r.url.includes('/messages/@original'));
+
+/** The public note, addressed to everyone in the channel. */
+const announcementAt = (o: ReturnType<typeof captureFetch>) =>
+  o.sent.findIndex(
+    (r) => r.url.includes('/webhooks/') && !r.url.includes('/messages/@original'),
+  );
+
 test('starting a draft arms the alarm', async () => {
   const { state, obj } = core();
   await obj.start(newDraft(), WINDOW);
@@ -99,6 +109,73 @@ test('the alarm files an abandoned draft with needs-review', async () => {
       outbound.sent.some((r) => r.url.includes('discord')),
       'the draft message must be updated, not left showing dead buttons',
     );
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('a draft the alarm files is still announced to the channel', async () => {
+  // Whether the reporter pressed Approve or wandered off, the issue now exists
+  // and the people who share the channel have the same reason to hear about it.
+  const outbound = captureFetch();
+  try {
+    const { obj } = core();
+    await obj.start(newDraft(), WINDOW);
+    await obj.fire();
+
+    assert.ok(announcementAt(outbound) >= 0, 'an abandoned draft must still be announced');
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('the announcement follows the card edit, or Discord swallows it', async () => {
+  // Posting a follow-up before the deferred message has been replaced makes
+  // Discord edit that loading message instead of creating a new one, and it
+  // drops the flags — so the public note would silently never appear.
+  const outbound = captureFetch();
+  try {
+    const { obj } = core();
+    await obj.start(newDraft(), WINDOW);
+    await obj.fire();
+
+    assert.ok(cardEditAt(outbound) >= 0, 'the card must still be edited');
+    assert.ok(
+      cardEditAt(outbound) < announcementAt(outbound),
+      'the card edit must come first',
+    );
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('a draft that never reached Todoist is not announced', async () => {
+  // Announcing a failure would tell the channel about work that does not exist.
+  const outbound = captureFetch(null);
+  try {
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (input: any, init: any) => {
+      const url = String(input?.url ?? input);
+      outbound.sent.push({
+        url,
+        body: init?.body ? JSON.parse(init.body) : null,
+        method: String(init?.method ?? 'GET').toUpperCase(),
+      });
+      // Todoist refuses; Discord still answers, so the reporter hears about it.
+      return url.includes('todoist')
+        ? new Response('nope', { status: 500 })
+        : new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as any;
+
+    try {
+      const { obj } = core();
+      await obj.start(newDraft(), WINDOW);
+      await obj.fire();
+    } finally {
+      globalThis.fetch = real;
+    }
+
+    assert.equal(announcementAt(outbound), -1, 'a failed filing must stay quiet');
   } finally {
     outbound.restore();
   }
@@ -220,3 +297,5 @@ test('clicking Approve twice files exactly one Todoist task', async () => {
     outbound.restore();
   }
 });
+
+

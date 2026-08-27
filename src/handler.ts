@@ -33,7 +33,7 @@ import {
   type DraftAction,
   type DraftStub,
 } from './draft.ts';
-import { editOriginalResponse } from './followup.ts';
+import { editOriginalResponse, postFollowupResponse } from './followup.ts';
 import {
   attachmentsOf,
   authorOf,
@@ -49,8 +49,8 @@ import {
   type Interaction,
 } from './interaction.ts';
 import type { IssueContext } from './issue.ts';
-import { fileIssue, normalizeSubmission } from './process.ts';
-import { resultMessage } from './result.ts';
+import { fileIssue, normalizeSubmission, type ProcessResult } from './process.ts';
+import { announcementMessage, resultMessage } from './result.ts';
 import { cancelledMessage, closedMessage, reviewMessage, savingMessage } from './review.ts';
 import type { Env } from './env.ts';
 
@@ -275,6 +275,7 @@ async function createDraftAndReview(
     console.error('Draft store unavailable, filing directly', cause);
     const result = await fileIssue(env, issue, context);
     await editOriginalResponse(interaction, resultMessage(result, context));
+    await announce(interaction, result, context);
     return;
   }
 
@@ -344,6 +345,25 @@ async function approveDraft(interaction: Interaction, stub: DraftStub): Promise<
   }
 
   await editOriginalResponse(interaction, resultMessage(result, draft.context));
+  await announce(interaction, result, draft.context);
+}
+
+/**
+ * Tells the channel an issue was filed.
+ *
+ * Silent when nothing was filed: a failure is the reporter's business, and
+ * announcing one would point the channel at work that does not exist.
+ *
+ * Always after the reply has been edited — a follow-up sent while the deferred
+ * message is still pending edits that instead of posting anything new.
+ */
+async function announce(
+  interaction: Interaction,
+  result: ProcessResult,
+  context: Omit<IssueContext, 'normalized'>,
+): Promise<void> {
+  if (!result.task) return;
+  await postFollowupResponse(interaction, announcementMessage(result, context));
 }
 
 /** The one modal a draft card can open. */

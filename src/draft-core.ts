@@ -5,9 +5,9 @@ import {
   type Draft,
   type EditFields,
 } from './draft.ts';
-import { editOriginal } from './followup.ts';
+import { editOriginal, postFollowup } from './followup.ts';
 import { fileIssue, type ProcessResult } from './process.ts';
-import { resultMessage } from './result.ts';
+import { announcementMessage, resultMessage } from './result.ts';
 import { REVIEW_LABEL } from './todoist.ts';
 import type { Env } from './env.ts';
 
@@ -130,6 +130,13 @@ export class DraftCore {
     await this.storage.put(DRAFT, { ...claimed, taskUrl: result.task.url });
     // Best effort: past minute 15 the token is dead and there is nothing to edit.
     await editOriginal(draft.applicationId, draft.token, resultMessage(result, draft.context));
+    // Strictly after the edit above — a follow-up sent while the deferred reply
+    // is still pending edits that message instead of creating a new one.
+    await postFollowup(
+      draft.applicationId,
+      draft.token,
+      announcementMessage(result, draft.context),
+    );
   }
 
   /** Editing means someone is still working, so the window starts over. */

@@ -202,7 +202,7 @@ test('a click on a finished draft offers the task instead of acting', async () =
 
   assert.equal(body.type, RESPONSE_UPDATE);
   assert.match(JSON.stringify(body.data), /sudah/);
-  assert.doesNotMatch(JSON.stringify(body.data), /todoist\.com/);
+  assert.match(JSON.stringify(body.data), /task\/9/);
 });
 
 test('someone who is not the reporter is refused', async () => {
@@ -245,3 +245,58 @@ test('every field the card can correct fits in the one modal', () => {
   assert.equal(new Set(fields).size, fields.length);
   assert.ok(fields.length <= 5, 'Discord caps a modal at 5 components');
 });
+
+/** The public note, addressed to everyone in the channel. */
+const announcementAt = (o: ReturnType<typeof captureFetch>) =>
+  o.sent.findIndex(
+    (r) => r.url.includes('/webhooks/') && !r.url.includes('/messages/@original'),
+  );
+
+/** The private card, addressed to the reporter alone. */
+const cardEditAt = (o: ReturnType<typeof captureFetch>) =>
+  o.sent.findIndex((r) => r.url.includes('/messages/@original'));
+
+test('approving a draft announces the issue to the channel', async () => {
+  const outbound = captureFetch();
+  try {
+    const { env } = withDraft(pending());
+    const { deferred } = await call(click('ok'), env);
+    await Promise.all(deferred);
+
+    assert.ok(announcementAt(outbound) >= 0, 'the channel must be told');
+    assert.ok(cardEditAt(outbound) < announcementAt(outbound), 'the card edit must come first');
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('the announcement names the reporter and the title', async () => {
+  const outbound = captureFetch();
+  try {
+    const { env } = withDraft(pending());
+    const { deferred } = await call(click('ok'), env);
+    await Promise.all(deferred);
+
+    const announcement = JSON.stringify(outbound.sent[announcementAt(outbound)]!.body);
+    assert.match(announcement, /rifa/);
+    assert.match(announcement, /Kodepos kosong/);
+  } finally {
+    outbound.restore();
+  }
+});
+
+test('cancelling a draft announces nothing', async () => {
+  // Nothing was filed, so there is nothing for the channel to hear about.
+  const outbound = captureFetch();
+  try {
+    const { env } = withDraft(pending());
+    const { deferred } = await call(click('x'), env);
+    await Promise.all(deferred);
+
+    assert.equal(announcementAt(outbound), -1);
+  } finally {
+    outbound.restore();
+  }
+});
+
+

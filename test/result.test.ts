@@ -34,13 +34,7 @@ const filed = (over: Partial<ProcessResult> = {}): ProcessResult => ({
 const footer = (result: ProcessResult) =>
   ((resultMessage(result, context) as any).embeds[0].footer?.text ?? '') as string;
 
-test('the reply says how many subtasks were created', async () => {
-  assert.match(footer(filed({ subtasksCreated: 3 })), /3 sub-task/);
-});
 
-test('no subtask note is shown when the issue had none', async () => {
-  assert.ok(!footer(filed()).includes('subtasks'));
-});
 
 test('subtasks that failed to save are called out, not silently dropped', async () => {
   // The task is already filed, so the only way the reporter learns a child is
@@ -71,23 +65,15 @@ test('an un-normalized report is still filed, and still shows what was recorded'
   assert.match(body.embeds[0].description, /Checkout tertutup navbar/);
 });
 
-test('the reply offers no Todoist link, which most reporters cannot open anyway', async () => {
-  // Tasks live in the project behind TODOIST_API_TOKEN. A reporter outside that
-  // workspace gets "task not found", so the button reads as a broken promise.
-  // The embed already carries what they need: confirmation and the title.
-  const body = resultMessage(filed(), context) as any;
+
+test('a submission that never reached Todoist offers no link to it', async () => {
+  // There is nothing to open, and a button pointing nowhere is worse than none.
+  const body = resultMessage(filed({ task: null, error: 'boom' }), context) as any;
 
   assert.doesNotMatch(JSON.stringify(body), /todoist\.com/);
 });
 
-test('a normalized report keeps the plain success reply', async () => {
-  const body = resultMessage(filed(), context) as any;
-  assert.match(body.embeds[0].title, /✅/);
-});
 
-test('images that reached Todoist are reported as attached', async () => {
-  assert.match(footer(filed({ attachmentsUploaded: 2 })), /2 gambar terlampir/);
-});
 
 test('images that never made it are called out with the reason', async () => {
   // The task is already filed, so this is the only place the reporter finds out.
@@ -97,6 +83,36 @@ test('images that never made it are called out with the reason', async () => {
   assert.match(text, /5 MB/);
 });
 
-test('a report with no images says nothing about images', async () => {
-  assert.ok(!footer(filed()).includes('gambar'));
+
+test('a clean filing gets a one-line receipt, not a second copy of the announcement', async () => {
+  // The public note already carries the title, the count and the link. Repeating
+  // all three privately is what made one report read as two conversations.
+  const body = resultMessage(filed({ subtasksCreated: 3 }), context) as any;
+  const text = JSON.stringify(body);
+
+  assert.match(text, /✅/, 'it still has to confirm something happened');
+  assert.doesNotMatch(text, /Checkout tertutup navbar/, 'the title belongs to the announcement');
+  assert.doesNotMatch(text, /todoist\.com/, 'so does the link');
+  assert.doesNotMatch(text, /3 sub-task/, 'and so does the count');
+});
+
+test('the receipt is still only for the reporter', async () => {
+  const body = resultMessage(filed(), context) as any;
+  assert.equal(body.flags, 1 << 6);
+});
+
+test('a report the model never touched keeps the full card', async () => {
+  // "belum dirapikan" appears nowhere else — not in the announcement, not in
+  // Todoist except as a label. Shrinking this one would drop the only copy.
+  const body = resultMessage(filed({ normalized: false }), context) as any;
+  const text = JSON.stringify(body);
+
+  assert.match(text, /belum dirapikan/i);
+  assert.match(text, /Checkout tertutup navbar/, 'the full card still names the issue');
+  assert.match(text, /todoist\.com/, 'and still links to it');
+});
+
+test('a subtask that failed to save keeps the full card', async () => {
+  const body = resultMessage(filed({ subtasksCreated: 2, subtasksFailed: 1 }), context) as any;
+  assert.match(JSON.stringify(body), /1 sub-task gagal/);
 });

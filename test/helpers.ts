@@ -52,6 +52,8 @@ export function signed(payload: unknown): Request {
 export interface OutboundCall {
   url: string;
   body: any;
+  /** Editing and deleting the reporter's card share a URL and differ only here. */
+  method: string;
 }
 
 /**
@@ -69,6 +71,7 @@ export function captureFetch(response: unknown = { id: '42' }) {
     sent.push({
       url: String(input?.url ?? input),
       body: init?.body ? JSON.parse(init.body) : null,
+      method: String(init?.method ?? 'GET').toUpperCase(),
     });
     return new Response(JSON.stringify(response), {
       status: 200,
