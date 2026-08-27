@@ -10,9 +10,20 @@ export interface CommandConfig {
   labels: string[];
   /** Modal heading. Discord caps this at 45 characters. */
   modalTitle: string;
-  /** Text above the textarea. Discord caps this at 45 characters. */
+  /**
+   * Text above the textarea. Discord caps this at 45 characters.
+   *
+   * It stands alone — the modal deliberately carries no sub-line under any
+   * field — so this has to say what belongs in the box by itself.
+   */
   fieldLabel: string;
-  /** Greyed-out hint inside the textarea. Discord caps this at 100 characters. */
+  /**
+   * Greyed-out hint inside the textarea. Discord caps this at 100 characters.
+   *
+   * This is where the sub-line went, so it tells the reporter what to do
+   * rather than showing them a filled-in example: sample text reads as
+   * something already written and gets skimmed past.
+   */
   placeholder: string;
   /** Shown in Discord's command picker. */
   description: string;
@@ -22,8 +33,11 @@ export const COMMANDS = {
   issue: {
     labels: ['discord'],
     modalTitle: 'Input Issue',
-    fieldLabel: 'Deskripsi',
-    placeholder: 'Tulis issue-nya di sini, seberantakan apa pun...',
+    // Acceptance rather than Deskripsi: what "beres" looks like is the one
+    // thing only the reporter can say, and it is what the model turns into
+    // the checklist on the task.
+    fieldLabel: 'Acceptance',
+    placeholder: 'Tulis kondisi yang bikin issue ini dianggap beres — sebebasnya, nanti dirapikan',
     description: 'Buat issue baru',
   },
 } satisfies Record<string, CommandConfig>;

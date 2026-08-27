@@ -25,6 +25,17 @@ export const WHY_ID = 'why';
 /** custom_id of the subtask textarea in the edit modal. */
 export const SUBTASKS_ID = 'subtasks';
 
+/**
+ * Field labels, shared by both modals so the form someone fills in and the
+ * form they correct never call the same thing by two names.
+ *
+ * Each one has to stand on its own: there is no sub-line under it any more,
+ * and Discord caps a label at 45 characters.
+ */
+export const TITLE_LABEL = 'Judul issue';
+export const URL_LABEL = 'URL tempat issue muncul';
+export const WHY_LABEL = 'Why — kenapa ini perlu dikerjakan';
+
 /** Prefix that carries the command name across the modal round-trip. */
 export const MODAL_PREFIX = 'issue:';
 
@@ -41,6 +52,17 @@ export const MAX_ATTACHMENTS = 4;
  * placing them in an Action Row is deprecated for modals, and TextInput's own
  * `label` field is deprecated too.
  *
+ * No Label carries a `description`: a sub-line under every field turned a
+ * four-field form into eight lines of reading. The label says what the field
+ * is, the placeholder shows an example of filling it in, and Discord's own red
+ * asterisk already marks the one field that is required — so none of them say
+ * "(opsional)" either.
+ *
+ * The placeholders instruct rather than illustrate. A filled-in example reads
+ * as content someone already wrote, so it gets skimmed past — and an example
+ * specific enough to be useful drags in a scenario that has nothing to do with
+ * whatever the reporter actually came to file.
+ *
  * `min_length` is enforced by Discord's client, so a too-short issue is
  * rejected before it ever costs an API call. The server still re-checks it.
  */
@@ -54,8 +76,7 @@ export function buildIssueModal(command: CommandName) {
       components: [
         {
           type: MessageComponentTypes.LABEL,
-          label: 'Judul',
-          description: 'Satu baris yang bisa dipindai sekilas.',
+          label: TITLE_LABEL,
           component: {
             type: MessageComponentTypes.INPUT_TEXT,
             custom_id: TITLE_ID,
@@ -64,26 +85,25 @@ export function buildIssueModal(command: CommandName) {
             min_length: 5,
             // Todoist truncates past this, and clipTitle enforces the same ceiling.
             max_length: 100,
-            placeholder: 'Kodepos tidak terisi otomatis',
+            placeholder: 'Tulis satu baris yang bisa dipindai sekilas',
           },
         },
         {
           type: MessageComponentTypes.LABEL,
-          label: 'Halaman terkait (opsional)',
-          description: 'URL halaman tempat issue-nya muncul.',
+          label: URL_LABEL,
           component: {
             type: MessageComponentTypes.INPUT_TEXT,
             custom_id: PAGE_URL_ID,
             style: TextStyleTypes.SHORT,
             required: false,
             max_length: 500,
-            placeholder: 'https://...',
+            // Carries what the sub-line used to say: when to leave it empty.
+            placeholder: 'Tempel URL halamannya, kosongkan kalau bukan soal satu halaman',
           },
         },
         {
           type: MessageComponentTypes.LABEL,
           label: config.fieldLabel,
-          description: 'Kenapa ini masalah? Tulis sebebasnya — sistem yang merapikan.',
           component: {
             type: MessageComponentTypes.INPUT_TEXT,
             custom_id: RAW_INPUT_ID,
@@ -98,21 +118,21 @@ export function buildIssueModal(command: CommandName) {
         },
         {
           type: MessageComponentTypes.LABEL,
-          label: 'Kenapa ini penting (opsional)',
-          description: 'Dampaknya ke siapa, dan seberapa mengganggu.',
+          label: WHY_LABEL,
           component: {
             type: MessageComponentTypes.INPUT_TEXT,
             custom_id: WHY_ID,
             style: TextStyleTypes.PARAGRAPH,
             required: false,
             max_length: 1000,
-            placeholder: 'Pelanggan tidak bisa checkout, jadi order batal.',
+            placeholder: 'Jelaskan dampaknya ke siapa, dan seberapa mengganggu',
           },
         },
         {
           type: MessageComponentTypes.LABEL,
-          label: 'Gambar (opsional)',
-          description: 'Screenshot sangat membantu. Maksimal 5 MB per file.',
+          // A file upload has no placeholder to hide the limit in, so the one
+          // thing worth knowing rides along in the label instead.
+          label: 'Gambar — maks 5 MB per file',
           component: {
             type: FILE_UPLOAD,
             custom_id: ATTACHMENTS_ID,
@@ -182,12 +202,12 @@ export function buildEditModal(draft: Draft) {
       custom_id: draftCustomId('edit', draft.id, true),
       title: 'Perbaiki issue',
       components: [
-        textField(TITLE_ID, 'Judul', issue.title, TextStyleTypes.SHORT, {
+        textField(TITLE_ID, TITLE_LABEL, issue.title, TextStyleTypes.SHORT, {
           required: true,
           max_length: 100,
         }),
-        textField(PAGE_URL_ID, 'Halaman', issue.url, TextStyleTypes.SHORT, { max_length: 500 }),
-        textField(WHY_ID, 'Kenapa ini penting', issue.why, TextStyleTypes.PARAGRAPH, {
+        textField(PAGE_URL_ID, URL_LABEL, issue.url, TextStyleTypes.SHORT, { max_length: 500 }),
+        textField(WHY_ID, WHY_LABEL, issue.why, TextStyleTypes.PARAGRAPH, {
           max_length: 1000,
         }),
         textField(

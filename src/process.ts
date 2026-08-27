@@ -68,8 +68,10 @@ export async function normalizeSubmission(
 function promptText(context: Omit<IssueContext, 'normalized'>): string {
   return [
     context.typedTitle ? `Judul: ${context.typedTitle}` : null,
-    context.rawInput ? `Deskripsi: ${context.rawInput}` : null,
-    context.why ? `Kenapa ini penting: ${context.why}` : null,
+    // Labelled the way the form labels it, so the model reads these as the
+    // acceptance criteria they are rather than as a loose description.
+    context.rawInput ? `Acceptance — kondisi issue dianggap beres: ${context.rawInput}` : null,
+    context.why ? `Why — kenapa ini perlu dikerjakan: ${context.why}` : null,
   ]
     .filter(Boolean)
     .join('\n\n') || context.rawInput;

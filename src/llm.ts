@@ -87,6 +87,11 @@ const SYSTEM = [
   '- Pertahankan bahasa Indonesia.',
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
+  // The form now asks for acceptance criteria rather than a free description,
+  // so the input arrives phrased as finished states — the exact phrasing the
+  // rule below forbids in the output. Saying so turns a contradiction the model
+  // has to guess its way out of into a conversion it can follow.
+  '- Deskripsi pelapor datang sebagai acceptance: kondisi yang harus tercapai supaya issue dianggap beres. Balik setiap kondisi itu menjadi pekerjaan yang belum dikerjakan. Contoh: "tombol checkout kelihatan utuh di semua ukuran layar" -> "Perbaiki tombol checkout yang ketutupan navbar di layar kecil".',
   `- subtasks: tulis tiap item sebagai perintah kerja imperatif — "Tambahkan...", "Perbaiki...", "Ganti...", "Terapkan...". Ini pekerjaan yang BELUM dikerjakan, jadi jangan pernah menulisnya sebagai keadaan yang sudah selesai ("sudah diperbaiki", "sudah terlihat") maupun sebagai kriteria selesai ("tersedia", "muncul dengan normal"). Satu laporan panjang tanpa tanda baca sering memuat beberapa pekerjaan terpisah — pecah semuanya. Maksimal ${MAX_SUBTASKS} item. Array kosong hanya bila pelapor tidak menuliskan pekerjaan apa pun.`,
   '  Contoh: "hero ganti layout ajangan terllau ai slop, tambahkan menu faq dan blog, warna primary belum keliahtan masih terlalu flat, kalau sudah ada warna primary terpakan disemuanya, beri cta di section setelah produk atau fitur, pricing juga responsivenaya berantakan, pricing dekstop kasih rekomendasi mana yg paling oke"',
   '  -> ["Ganti layout hero agar tidak terlihat seperti hasil AI", "Tambahkan menu FAQ dan blog", "Perkuat warna primary yang masih terlalu flat", "Terapkan warna primary pada seluruh bagian", "Beri CTA pada section setelah produk atau fitur", "Perbaiki responsivitas tampilan pricing", "Tandai paket rekomendasi pada pricing desktop"]',

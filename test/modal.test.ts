@@ -52,9 +52,40 @@ test('every field sits inside a Label, not an Action Row', async () => {
   }
 });
 
-test('the form asks for title, url, description, why and images in that order', async () => {
+test('the form asks for title, url, acceptance, why and images in that order', async () => {
   const ids = (await modalComponents()).map((c: any) => c.component.custom_id);
   assert.deepEqual(ids, ['title', 'page_url', 'raw_input', 'why', 'attachments']);
+});
+
+test('no field carries a sub-line under its label', async () => {
+  // A description under every field doubled the length of the form. What the
+  // sub-line said now lives in the label or in the placeholder.
+  for (const component of await modalComponents()) {
+    assert.equal(
+      component.description,
+      undefined,
+      `${component.component.custom_id} still has a description`,
+    );
+  }
+});
+
+test('every label stands on its own and fits the 45-character cap', async () => {
+  for (const component of await modalComponents()) {
+    assert.ok(component.label.length <= 45, `${component.label} is over 45 characters`);
+    // Without a sub-line there is nothing else to read, so a bare word that
+    // could mean anything is not enough.
+    assert.ok(component.label.length >= 6, `${component.label} says too little on its own`);
+  }
+});
+
+test('the fields that can hold a hint carry one', async () => {
+  // The placeholder is the only place left for an example, so a text field
+  // without one now teaches the reporter nothing.
+  for (const id of ['title', 'page_url', 'raw_input', 'why']) {
+    const { component } = await field(id);
+    assert.ok(component.placeholder, `${id} has no placeholder to explain itself`);
+    assert.ok(component.placeholder.length <= 100, `${id} placeholder is over 100 characters`);
+  }
 });
 
 test('the title is the only field the reporter must fill in', async () => {
