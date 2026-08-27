@@ -27,7 +27,11 @@ export const CONFIG = {
      * app could then write into the Todoist projects below, so keep it filled.
      * Copy an ID with Developer Mode on: right-click the server → Copy Server ID.
      */
-    guildIds: ['1392070580534251621', '940451541037490256'],
+    guildIds: [
+      '1392070580534251621',
+      '940451541037490256',
+      '1449550633035239537',  // LOGIKA
+    ],
   },
 
   todoist: {
@@ -57,6 +61,7 @@ export const CONFIG = {
      */
     channels: {
       '1512274401931034655': '6h8gXQGqrXxhj96c',  // VENTURO #officia → Officia
+      '1461027385901056112': '6gPRpc384mR7x8QX',  // LOGIKA #tuai → Tuai Saham
     },
   },
 } satisfies Config;
