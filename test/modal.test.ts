@@ -31,14 +31,14 @@ async function field(customId: string): Promise<any> {
   return found;
 }
 
-test('/issue responds with a modal titled Input Issue', async () => {
+test('/issue responds with a modal titled Buat Issue', async () => {
   const res = await openModal();
   assert.equal(res.status, 200);
 
   const body = (await res.json()) as any;
   assert.equal(body.type, RESPONSE_MODAL);
   assert.equal(body.data.custom_id, 'issue:issue');
-  assert.equal(body.data.title, 'Input Issue');
+  assert.equal(body.data.title, 'Buat Issue');
 });
 
 test('every field sits inside a Label, not an Action Row', async () => {

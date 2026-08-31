@@ -32,3 +32,20 @@ class_name = "IssueDraft"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["IssueDraft"]
+
+# Semua console.log/error dari Worker maupun Durable Object disimpan di
+# Cloudflare (Workers Logs), bukan cuma lewat begitu saja. Tanpa blok ini
+# `wrangler tail` hanya menampilkan log yang kebetulan lewat saat kita
+# menonton — sekali putus, jejaknya hilang.
+#
+# head_sampling_rate = 1 berarti 100% request dicatat. Volume bot ini kecil,
+# jadi tidak ada alasan menyampel. Retensi free tier ~3 hari.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+# Catat juga baris ringkasan tiap invocation (status, durasi, outcome), supaya
+# request yang mati sebelum sempat nge-log apa pun tetap kelihatan.
+invocation_logs = true

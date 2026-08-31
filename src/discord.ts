@@ -32,7 +32,7 @@ export const SUBTASKS_ID = 'subtasks';
  * Each one has to stand on its own: there is no sub-line under it any more,
  * and Discord caps a label at 45 characters.
  */
-export const TITLE_LABEL = 'Judul issue';
+export const TITLE_LABEL = 'Nama issue';
 export const URL_LABEL = 'URL tempat issue muncul';
 export const WHY_LABEL = 'Why — kenapa ini perlu dikerjakan';
 

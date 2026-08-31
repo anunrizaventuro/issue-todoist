@@ -32,7 +32,7 @@ export interface CommandConfig {
 export const COMMANDS = {
   issue: {
     labels: ['discord'],
-    modalTitle: 'Input Issue',
+    modalTitle: 'Buat Issue',
     // Acceptance rather than Deskripsi: what "beres" looks like is the one
     // thing only the reporter can say, and it is what the model turns into
     // the checklist on the task.
