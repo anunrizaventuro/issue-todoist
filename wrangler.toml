@@ -14,12 +14,19 @@ compatibility_flags = ["nodejs_compat"]
 # The Discord servers allowed to file issues and the Todoist project they file
 # into are not secrets and live in src/config.ts.
 [vars]
-# Produksi memakai provider cloud karena Worker berjalan di edge Cloudflare dan
-# tidak bisa menjangkau gateway internal di alamat privat. Untuk pengembangan
-# lokal, `.dev.vars` menimpa dua nilai ini, jadi `wrangler dev` tetap memakai
-# gateway sendiri tanpa mengubah baris ini.
-LLM_BASE_URL = "https://openrouter.ai/api/v1"
-LLM_MODEL = "google/gemini-3.7-flash"
+# Sejak 2026-09-01 produksi memakai gateway sendiri lewat alamat publiknya.
+# Alamat privat 10.10.1.31 tidak bisa dijangkau Worker di edge Cloudflare, dan
+# itulah satu-satunya alasan sempat menumpang OpenRouter. omniroute publik, jadi
+# alasan itu hilang. Kata CTO cuma hostnya yang berbeda — kunci dan nama model
+# sama dengan gateway internal, sehingga `.dev.vars` bisa memakai nilai yang sama.
+#
+# Dua baris ini tidak berguna tanpa `wrangler secret put LLM_API_KEY`. Bila kunci
+# itu kosong, configFromEnv() di src/llm.ts mengembalikan null dan normalisasi
+# dilewati DIAM-DIAM: laporan tetap sampai ke Todoist, tapi sebagai teks mentah
+# berlabel needs-triage, tanpa satu baris error pun di log. Kalau gejala itu
+# muncul lagi, jalankan `wrangler secret list` sebelum menyalahkan gateway.
+LLM_BASE_URL = "https://omniroute.erlio.id/v1"
+LLM_MODEL = "cx/gpt-5.5"
 # Minutes before an untouched draft files itself. Must stay under 15: the Discord
 # interaction token expires then, and the alarm could no longer replace the draft
 # card with the result.
