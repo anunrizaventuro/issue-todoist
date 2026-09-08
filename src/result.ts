@@ -11,7 +11,8 @@ const RED = 0xef4444;
  * The message that replaces the "thinking..." placeholder.
  *
  * When Todoist rejects the task the user still gets their full text back, so a
- * failure never costs them what they wrote.
+ * failure never costs them what they wrote, and the refusal itself is named
+ * rather than left as a generic failure.
  *
  * Shrinks to a bare receipt when the filing was clean, because `announcementMessage`
  * already told the channel — including the reporter — the title, the count and
@@ -32,6 +33,11 @@ export function resultMessage(
             3800,
           ),
           color: RED,
+          // A dead project id, an expired token and a Todoist outage all produce
+          // the same title, and only some of them are the reporter's to fix.
+          // The reason is already captured, so withholding it only costs
+          // whoever has to work out why nothing was filed.
+          ...(result.error ? { footer: { text: truncate(result.error, 300) } } : {}),
         },
       ],
       flags: InteractionResponseFlags.EPHEMERAL,

@@ -116,3 +116,25 @@ test('a subtask that failed to save keeps the full card', async () => {
   const body = resultMessage(filed({ subtasksCreated: 2, subtasksFailed: 1 }), context) as any;
   assert.match(JSON.stringify(body), /1 sub-task gagal/);
 });
+
+
+test('a failed submission names the reason Todoist refused it', async () => {
+  // "Gagal menyimpan" alone reads the same whether the token expired, the
+  // project id is dead or Todoist was down — and only one of those is
+  // something the reporter can act on. The reason is captured either way, so
+  // withholding it only costs whoever has to debug it.
+  const body = resultMessage(
+    filed({ task: null, error: 'Error: Todoist 404: {"error":"Project not found"}' }),
+    context,
+  ) as any;
+
+  assert.match(body.embeds[0].footer.text, /404/);
+  assert.match(body.embeds[0].footer.text, /Project not found/);
+  // The text they wrote is still the point of the message.
+  assert.ok(body.embeds[0].description.includes(context.rawInput));
+});
+
+test('a failure with no reason recorded shows no empty footer', async () => {
+  const body = resultMessage(filed({ task: null, error: null }), context) as any;
+  assert.equal(body.embeds[0].footer, undefined);
+});
