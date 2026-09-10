@@ -26,7 +26,24 @@ compatibility_flags = ["nodejs_compat"]
 # berlabel needs-triage, tanpa satu baris error pun di log. Kalau gejala itu
 # muncul lagi, jalankan `wrangler secret list` sebelum menyalahkan gateway.
 LLM_BASE_URL = "https://omniroute.erlio.id/v1"
-LLM_MODEL = "cx/gpt-5.5"
+# Jangan percaya `GET /v1/models` sebagai bukti sebuah model bisa dipakai.
+# `cx/gpt-5.5` terdaftar di katalog itu, tapi setiap panggilan — lewat
+# /chat/completions maupun /responses — dijawab 404 "The model `gpt-5.5` does
+# not exist or you do not have access to it". Terpasang 1 Sep 2026 dan baru
+# ketahuan 10 Sep: kegagalan LLM tidak pernah menggagalkan submission, jadi
+# selama sembilan hari semua laporan diam-diam masuk sebagai teks mentah
+# berlabel needs-triage. Uji dulu dengan satu panggilan sungguhan sebelum
+# mengganti baris ini.
+#
+# Backend `cx/` bersandar pada akun ChatGPT, bukan API key (terbaca dari error
+# cx/gpt-5.3-codex-spark: "not supported when using Codex with a ChatGPT
+# account"). Konsekuensinya cooldown berlaku se-provider: satu model yang
+# dihajar error bisa mengunci semua model `cx/` lain, lengkap dengan pesan
+# error milik model yang salah. Kalau tiba-tiba semua `cx/` gagal berbarengan,
+# curigai itu dulu sebelum mengganti model. `cc/claude-sonnet-5` dan
+# `cc/claude-haiku-4-5-20251001` lewat kunci yang sama adalah jalan keluar
+# yang sudah teruji.
+LLM_MODEL = "cx/gpt-5.6-terra"
 # Minutes before an untouched draft files itself. Must stay under 15: the Discord
 # interaction token expires then, and the alarm could no longer replace the draft
 # card with the result.
