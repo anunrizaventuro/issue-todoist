@@ -194,7 +194,7 @@ test('the why field reaches the draft verbatim', async () => {
   assert.equal(draft.issue.why, 'pelanggan batal checkout', 'the model must not rewrite it');
 });
 
-test('the title typed into the form beats the one the model would pick', async () => {
+test('with no model, the title typed into the form beats the description\'s first line', async () => {
   const draft = await submitToDraft(
     submission('tombol checkout ketutup navbar di mobile', {}, 'Navbar menutupi tombol checkout'),
   );

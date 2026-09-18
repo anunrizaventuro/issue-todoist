@@ -47,11 +47,14 @@ export async function normalizeSubmission(
   const base = normalized ?? fromRawInput(context.rawInput || context.typedTitle || '');
 
   return {
-    // What the reporter typed into the form beats what the model read out of the
-    // prose, and survives even when no model ran.
     issue: {
       ...base,
-      title: context.typedTitle ? clipTitle(context.typedTitle) : base.title,
+      // The model sees the typed title in the prompt and tidies it like the rest;
+      // the reporter can take their wording back with Edit on the review card.
+      // Without a model, the typed title still beats the description's first line.
+      title: normalized || !context.typedTitle ? base.title : clipTitle(context.typedTitle),
+      // The URL is the opposite: a link is either right or wrong, so what the
+      // reporter typed beats whatever the model read out of the prose.
       url: toUrl(context.pageUrl) ?? base.url,
       why: context.why,
     },

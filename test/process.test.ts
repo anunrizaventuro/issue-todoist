@@ -199,6 +199,33 @@ test('an subtask that cannot be saved does not fail the submission', async () =>
   }
 });
 
+test('the title typed into the form is tidied by the model like everything else', async () => {
+  // Reporters type titles in a hurry; the review card's Edit button is where
+  // they take back a wording the model got wrong.
+  const { sent, restore } = stubFetch(NORMALIZED);
+  try {
+    const result = await submit(configured, { ...context, typedTitle: 'checkout ketutup' });
+
+    assert.equal(result.issue.title, 'Checkout tertutup navbar di halaman produk');
+    const prompt = JSON.stringify(sent.find((r) => r.url.includes('llm.example.com'))!.body);
+    assert.match(prompt, /checkout ketutup/, 'the model must see the typed title to tidy it');
+  } finally {
+    restore();
+  }
+});
+
+test('the typed title survives a failed model call, rather than the description', async () => {
+  // The reporter picked those words as the one-liner; the first line of the
+  // description is only a guess at one.
+  const { restore } = stubFetch(null);
+  try {
+    const result = await submit(configured, { ...context, typedTitle: 'Checkout ketutup' });
+    assert.equal(result.issue.title, 'Checkout ketutup');
+  } finally {
+    restore();
+  }
+});
+
 test('the URL typed into the form wins over the one the model produced', async () => {
   const { sent, restore } = stubFetch(NORMALIZED);
   try {

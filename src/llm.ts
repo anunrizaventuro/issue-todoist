@@ -86,6 +86,9 @@ const SYSTEM = [
   '- Jangan mengarang. Semua item harus berakar pada yang benar-benar ditulis pelapor.',
   '- Pertahankan bahasa Indonesia.',
   '- title harus spesifik dan bisa dipindai sekilas, bukan pengulangan seluruh pesan.',
+  // The typed title used to override the model outright; now the model's title
+  // wins, so it must start from the reporter's own words rather than replace them.
+  '- Bila pelapor menulis "Judul:", title adalah versi rapi dari judul itu: perbaiki ejaan dan typo, perjelas kalimatnya, lengkapi dengan detail dari deskripsi bila membantu. Jangan mengganti topiknya.',
   '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
   // The form now asks for acceptance criteria rather than a free description,
   // so the input arrives phrased as finished states — the exact phrasing the
