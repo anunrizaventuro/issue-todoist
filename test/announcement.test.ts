@@ -61,12 +61,31 @@ test('the issue title is the headline, and the reporter moves to the footer', ()
   assert.equal(embed.footer.text, 'dari Riza Abdillah · ☑️ 1 sub-task');
 });
 
-test('the announcement never repeats what the reporter typed', () => {
-  // Only the title, which the reporter wrote as a one-liner for others to read.
-  // The raw description can carry anything, and this message is public.
-  const body = announcementMessage(filed(), context) as any;
+test('the title heads the message, with Why and Acceptance under it', () => {
+  // The channel should know what is wanted without opening Todoist.
+  const body = announcementMessage(
+    filed({ issue: { ...filed().issue, why: 'pelanggan batal beli' } }),
+    context,
+  ) as any;
+  const [embed] = body.embeds;
 
-  assert.doesNotMatch(JSON.stringify(body), /pelanggan tidak bisa bayar/);
+  assert.equal(
+    embed.description,
+    '**Why**\npelanggan batal beli\n\n**Acceptance**\ntombol checkout ketutup navbar, pelanggan tidak bisa bayar',
+  );
+});
+
+test('an empty Why is left out rather than shown blank', () => {
+  const body = announcementMessage(filed(), context) as any;
+  const [embed] = body.embeds;
+
+  assert.doesNotMatch(embed.description, /Why/);
+  assert.match(embed.description, /^\*\*Acceptance\*\*/);
+});
+
+test('a title-only report has no body at all', () => {
+  const body = announcementMessage(filed(), { ...context, rawInput: '' }) as any;
+  assert.equal(body.embeds[0].description, undefined);
 });
 
 test('the announcement says how many subtasks came out of it', () => {

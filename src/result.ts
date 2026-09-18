@@ -131,9 +131,10 @@ export function todoistButton(url: string): Record<string, unknown> {
  *
  * Separate from `resultMessage` because the two answer different people: that
  * one confirms to the reporter what happened to their text, this one tells
- * everyone else that the work now exists. Only the typed title travels — the
- * raw description is whatever someone poured into a textarea, and this message
- * is read by the whole channel.
+ * everyone else that the work now exists. The title heads it, and under it
+ * the Why and Acceptance the reporter wrote — named as the form names them, so
+ * the channel can tell what is wanted without opening Todoist. Empty sections
+ * are left out rather than shown as "-".
  */
 export function announcementMessage(
   result: ProcessResult,
@@ -147,11 +148,18 @@ export function announcementMessage(
   if (context.filedBy) notes.push(`dilaporkan oleh ${context.filedBy}`);
   if (result.subtasksCreated > 0) notes.push(`☑️ ${result.subtasksCreated} sub-task`);
 
+  const sections: string[] = [];
+  const why = result.issue.why?.trim();
+  if (why) sections.push(`**Why**\n${why}`);
+  const acceptance = context.rawInput.trim();
+  if (acceptance) sections.push(`**Acceptance**\n${acceptance}`);
+
   return {
     embeds: [
       {
         // Discord rejects an embed title over 256 characters.
         title: truncate(`📝 ${result.issue.title}`, 240),
+        ...(sections.length > 0 ? { description: truncate(sections.join('\n\n'), 3800) } : {}),
         color: GREEN,
         footer: { text: notes.join(' · ') },
       },
