@@ -139,7 +139,9 @@ export function announcementMessage(
   result: ProcessResult,
   context: Omit<IssueContext, 'normalized'>,
 ): Record<string, unknown> {
-  const notes: string[] = [];
+  // The headline is the issue itself, so the channel sees what broke before
+  // who noticed; the reporter is still credited, one line down.
+  const notes: string[] = [`dari ${context.author}`];
   // Two people are involved when someone files another person's message, and
   // crediting only one of them misreads who reported what.
   if (context.filedBy) notes.push(`dilaporkan oleh ${context.filedBy}`);
@@ -148,10 +150,10 @@ export function announcementMessage(
   return {
     embeds: [
       {
-        title: `📝 Issue baru dari ${context.author}`,
-        description: truncate(result.issue.title, 3800),
+        // Discord rejects an embed title over 256 characters.
+        title: truncate(`📝 ${result.issue.title}`, 240),
         color: GREEN,
-        ...(notes.length > 0 ? { footer: { text: notes.join(' · ') } } : {}),
+        footer: { text: notes.join(' · ') },
       },
     ],
     // No ephemeral flag: that absence is the entire feature.

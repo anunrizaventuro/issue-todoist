@@ -51,6 +51,16 @@ test('the announcement carries the title, so the channel knows what it is about'
   assert.match(JSON.stringify(body), /Checkout tertutup navbar/);
 });
 
+test('the issue title is the headline, and the reporter moves to the footer', () => {
+  // The headline is what the channel reads at a glance, so it should say what
+  // broke rather than who noticed.
+  const body = announcementMessage(filed({ subtasksCreated: 1 }), context) as any;
+  const [embed] = body.embeds;
+
+  assert.equal(embed.title, '📝 Checkout tertutup navbar');
+  assert.equal(embed.footer.text, 'dari Riza Abdillah · ☑️ 1 sub-task');
+});
+
 test('the announcement never repeats what the reporter typed', () => {
   // Only the title, which the reporter wrote as a one-liner for others to read.
   // The raw description can carry anything, and this message is public.
