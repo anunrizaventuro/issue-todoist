@@ -62,6 +62,7 @@ export const CONFIG = {
     channels: {
       '1512274401931034655': '6h8gXQGqrXxhj96c',  // VENTURO #officia → Officia
       '1461027385901056112': '6gPRpc384mR7x8QX',  // LOGIKA #tuai → Tuai Saham
+      '1517184818100703242': '6hcPgg9rjxjm5Ffp',  // → Hubung
     },
   },
 } satisfies Config;
