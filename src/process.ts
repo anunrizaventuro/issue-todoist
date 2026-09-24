@@ -57,6 +57,10 @@ export async function normalizeSubmission(
       // reporter typed beats whatever the model read out of the prose.
       url: toUrl(context.pageUrl) ?? base.url,
       why: context.why,
+      // A title with an empty Acceptance box names one piece of work, and the
+      // title already says it. The prompt asks for no subtasks here too; this
+      // holds even when the model pads the list with the title reworded.
+      subtasks: context.typedTitle && !context.rawInput.trim() ? [] : base.subtasks,
     },
     context: { ...context, normalized: normalized !== null },
   };

@@ -182,6 +182,21 @@ test('a report with no subtasks makes no extra Todoist calls', async () => {
   }
 });
 
+test('a title-only report gets no subtasks, even if the model invents some', async () => {
+  // NORMALIZED carries two subtasks; with nothing in Acceptance they have
+  // nothing to be rooted in but the title, and repeating the title as a child
+  // task is noise.
+  const { sent, restore } = stubFetch(NORMALIZED);
+  try {
+    const result = await submit(configured, { ...context, typedTitle: 'Checkout ketutup navbar', rawInput: '' });
+
+    assert.deepEqual(result.issue.subtasks, []);
+    assert.equal(childBodies(sent).length, 0);
+  } finally {
+    restore();
+  }
+});
+
 test('an subtask that cannot be saved does not fail the submission', async () => {
   // The main task is already stored by then; discarding it because a child
   // write failed would lose the report over a detail.
