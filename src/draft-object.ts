@@ -27,10 +27,6 @@ export class IssueDraft extends DurableObject<Env> {
     return this.core.edit(fields);
   }
 
-  priority(value: number): Promise<Draft | null> {
-    return this.core.priority(value);
-  }
-
   approve(): Promise<ProcessResult | 'closed'> {
     return this.core.approve();
   }

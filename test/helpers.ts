@@ -128,10 +128,6 @@ export function memoryDrafts() {
       current = { ...current, issue, context: { ...current.context, rawInput } };
       return current;
     },
-    priority: async (value: number) => {
-      current = { ...current, issue: { ...current.issue, priority: value } };
-      return current;
-    },
     approve: async () => ({
       issue: current.issue,
       task: { id: '42', url: 'https://app.todoist.com/app/task/42' },

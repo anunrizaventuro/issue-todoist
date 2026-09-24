@@ -84,6 +84,40 @@ export function destinationFor(
   return { projectId: todoist.defaultProjectId, needsRouting: routing };
 }
 
+/** The section a new task lands in, matched by name in whichever project it goes to. */
+export const TARGET_SECTION = 'TODO';
+
+/**
+ * Finds the section named `name` in a project, or null.
+ *
+ * Looked up by name on every filing rather than kept as an ID in config, so a
+ * project mapped later picks up its own TODO section without anyone copying
+ * IDs. Never throws: a task in "No section" is misplaced, a task never
+ * created is a lost report.
+ */
+export async function findSection(
+  token: string,
+  projectId: string,
+  name: string = TARGET_SECTION,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${API}/sections?project_id=${encodeURIComponent(projectId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      console.error(`Todoist sections ${res.status}: ${await res.text()}`);
+      return null;
+    }
+
+    const { results } = (await res.json()) as { results?: { id: string; name: string }[] };
+    const wanted = name.trim().toLowerCase();
+    return results?.find((s) => s.name.trim().toLowerCase() === wanted)?.id ?? null;
+  } catch (cause) {
+    console.error('Todoist sections failed', cause);
+    return null;
+  }
+}
+
 export interface CreatedTask {
   id: string;
   url: string;
@@ -116,6 +150,8 @@ export async function createTask(
   );
   if (destination.needsRouting) labels.push(ROUTING_LABEL);
 
+  const sectionId = await findSection(token, destination.projectId);
+
   const res = await fetch(`${API}/tasks`, {
     method: 'POST',
     headers: {
@@ -126,8 +162,8 @@ export async function createTask(
       content: issue.title,
       description: renderDescription(issue, context, unattached),
       project_id: destination.projectId,
+      ...(sectionId ? { section_id: sectionId } : {}),
       labels,
-      priority: issue.priority,
     }),
   });
 

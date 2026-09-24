@@ -127,7 +127,10 @@ test('Edit opens a modal prefilled from the draft', async () => {
 
 test('the card offers three buttons, and none of them opens a second modal', async () => {
   const { env } = withDraft(pending());
-  const { body } = await call(click('pr'), env);
+  const { body } = await call(
+    modalSubmit('edit', [label('title', 'Kodepos kosong'), label('page_url', ''), label('why', ''), label('subtasks', '')]),
+    env,
+  );
 
   const buttons = body.data.components[0].components;
   assert.deepEqual(buttons.map((b: any) => b.label), ['Approve', 'Edit', 'Batal']);
@@ -170,14 +173,13 @@ test('submitting the edit updates the card inline, without calling the model', a
   }
 });
 
-test('the priority dropdown updates the card in place', async () => {
-  const { drafts, env } = withDraft(pending());
+test('the card has no priority dropdown, and its old custom_id is dead', async () => {
+  const { env } = withDraft(pending());
   const { body } = await call(click('pr', { values: ['3'] }), env);
 
-  assert.equal(body.type, RESPONSE_UPDATE);
-  const select = body.data.components[1].components[0];
-  assert.equal(select.options.find((o: any) => o.default).value, '3');
-  assert.ok(drafts);
+  // A card posted before the dropdown was removed can still send this.
+  assert.equal(body.type, RESPONSE_MESSAGE);
+  assert.match(body.data.content, /Tombol tidak dikenal/);
 });
 
 test('Batal hands the text back and files nothing', async () => {

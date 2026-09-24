@@ -103,7 +103,7 @@ test('findValue reaches inputs regardless of nesting depth', () => {
   assert.equal(findValue([{ type: 4, custom_id: 'y', value: 'no' }], 'x'), undefined);
 });
 
-const filedTask = () => outbound.sent.find((r) => r.url.includes('todoist'))!.body;
+const filedTask = () => outbound.sent.find((r) => r.url.endsWith('/tasks'))?.body;
 
 test('the URL typed into the form reaches the draft', async () => {
   const payload = submission('tombol checkout ketutup navbar di mobile');

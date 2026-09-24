@@ -1,6 +1,5 @@
 import {
   applyEdit,
-  applyPriority,
   claim,
   type Draft,
   type EditFields,
@@ -61,10 +60,6 @@ export class DraftCore {
 
   async edit(fields: EditFields): Promise<Draft | null> {
     return this.mutate((draft) => applyEdit(draft, fields));
-  }
-
-  async priority(value: number): Promise<Draft | null> {
-    return this.mutate((draft) => applyPriority(draft, value));
   }
 
   /** Returns 'closed' when the draft was already finished by someone else. */

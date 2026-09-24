@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import {
   applyEdit,
-  applyPriority,
   claim,
   draftCustomId,
   isReporter,
@@ -72,10 +71,9 @@ test('a cancelled draft cannot be filed afterwards', () => {
   assert.equal(claim(cancelled, 'filed'), null);
 });
 
-test('editing overwrites the model output, priority aside', () => {
+test('editing overwrites the model output', () => {
   const before = draft();
   before.issue.subtasks = ['tebakan pertama model'];
-  before.issue.priority = 3;
 
   const after = applyEdit(before, {
     title: 'Kodepos tidak terisi otomatis',
@@ -88,7 +86,6 @@ test('editing overwrites the model output, priority aside', () => {
   assert.equal(after.issue.url, 'https://app.example.com/checkout');
   assert.equal(after.issue.why, 'pelanggan batal checkout');
   assert.deepEqual(after.issue.subtasks, ['Kodepos terisi otomatis dari alamat']);
-  assert.equal(after.issue.priority, 3, 'prioritas diatur dropdown, bukan modal');
   assert.equal(after.status, 'pending');
 });
 
@@ -118,12 +115,6 @@ test('an edited title too long for Todoist is clipped', () => {
     subtasks: [],
   });
   assert.ok(after.issue.title.length <= 100);
-});
-
-test('priority only accepts the Todoist scale', () => {
-  assert.equal(applyPriority(draft(), 3).issue.priority, 3);
-  assert.equal(applyPriority(draft(), 9).issue.priority, 1, 'out of range falls back to normal');
-  assert.equal(applyPriority(draft(), Number.NaN).issue.priority, 1);
 });
 
 test('only the reporter owns the draft', () => {

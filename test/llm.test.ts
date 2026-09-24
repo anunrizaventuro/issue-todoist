@@ -29,7 +29,6 @@ function reply(content: string, status = 200) {
 
 const GOOD = JSON.stringify({
   title: 'Tombol checkout tidak muncul di mobile',
-  priority: 3,
   url: 'https://toko.example.com/keranjang',
   subtasks: ['Perbaiki z-index navbar', 'Uji di iOS Safari'],
 });
@@ -39,7 +38,7 @@ test('a well-formed reply becomes a normalized issue', async () => {
 
   assert.ok(issue);
   assert.equal(issue.title, 'Tombol checkout tidak muncul di mobile');
-  assert.equal(issue.priority, 3);
+  assert.equal('priority' in issue, false);
   assert.deepEqual(issue.subtasks, ['Perbaiki z-index navbar', 'Uji di iOS Safari']);
 });
 
@@ -66,15 +65,15 @@ test('a refusal yields null instead of a task full of apology text', async () =>
   assert.equal(await normalizeIssue(config, 'apa saja', refused), null);
 });
 
-test('a reply missing required fields yields null', async () => {
-  const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ title: 'cuma judul' })));
+test('a reply missing its title yields null', async () => {
+  const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ url: null, subtasks: [] })));
   assert.equal(issue, null);
 });
 
-test('an out-of-range priority yields null instead of a bad Todoist call', async () => {
-  // Todoist only accepts 1-4; anything else is rejected by the API.
+test('a priority the model adds anyway is ignored, not passed to Todoist', async () => {
   const issue = await normalizeIssue(config, 'apa saja', reply(JSON.stringify({ ...JSON.parse(GOOD), priority: 9 })));
-  assert.equal(issue, null);
+  assert.ok(issue);
+  assert.equal('priority' in issue, false);
 });
 
 test('an over-long title is clipped to what Todoist can display', async () => {

@@ -313,11 +313,6 @@ async function handleDraftComponent(
     case 'edit':
       return json(buildEditModal(draft));
 
-    case 'pr': {
-      const next = await stub.priority(Number(interaction.data?.values?.[0]));
-      return json(update(next ? reviewMessage(next, reviewTimeoutMinutes(env)) : closedMessage(draft)));
-    }
-
     case 'x': {
       const cancelled = await stub.cancel();
       return json(update(cancelled ? cancelledMessage(cancelled) : closedMessage(draft)));

@@ -56,11 +56,6 @@ const SCHEMA = {
   type: 'object',
   properties: {
     title: { type: 'string', description: 'Ringkasan satu baris, maksimal 100 karakter.' },
-    priority: {
-      type: 'integer',
-      enum: [1, 2, 3, 4],
-      description: 'Skala Todoist: 1 = biasa, 4 = mendesak. Pakai 1 kalau ragu.',
-    },
     url: {
       type: ['string', 'null'],
       description: 'URL halaman yang bermasalah bila pelapor menyebutkannya. null bila tidak ada.',
@@ -72,7 +67,7 @@ const SCHEMA = {
         'Daftar pekerjaan, satu perintah imperatif per item, hasil pemecahan deskripsi pelapor.',
     },
   },
-  required: ['title', 'priority', 'url', 'subtasks'],
+  required: ['title', 'url', 'subtasks'],
   additionalProperties: false,
 } as const;
 
@@ -89,7 +84,6 @@ const SYSTEM = [
   // The typed title used to override the model outright; now the model's title
   // wins, so it must start from the reporter's own words rather than replace them.
   '- Bila pelapor menulis "Judul:", title adalah versi rapi dari judul itu: perbaiki ejaan dan typo, perjelas kalimatnya, lengkapi dengan detail dari deskripsi bila membantu. Jangan mengganti topiknya.',
-  '- Naikkan priority hanya bila pelapor menyatakan urgensi atau dampaknya jelas luas.',
   // The form now asks for acceptance criteria rather than a free description,
   // so the input arrives phrased as finished states — the exact phrasing the
   // rule below forbids in the output. Saying so turns a contradiction the model
@@ -228,13 +222,10 @@ function toIssue(text: string): NormalizedIssue | null {
   const value = raw as Record<string, unknown>;
 
   const title = str(value.title);
-  const priority = value.priority;
   if (!title) return null;
-  if (priority !== 1 && priority !== 2 && priority !== 3 && priority !== 4) return null;
 
   return {
     title: clipTitle(title),
-    priority,
     url: toUrl(str(value.url)),
     // Supplied by the reporter, never by the model.
     why: null,

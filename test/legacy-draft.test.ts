@@ -69,7 +69,6 @@ test('a draft from the previous deploy still reaches Todoist', async () => {
   const task = sent.find((call) => call.url.endsWith('/tasks'))!;
   assert.equal(task.body.content, 'Kodepos tidak terisi otomatis');
   assert.match(task.body.description, /pelanggan batal checkout/);
-  assert.match(task.body.description, /kodepos ga keisi otomatis/, 'the quote still carries it');
 });
 
 test('a legacy draft keeps its subtask list, because the field means the same again', async () => {

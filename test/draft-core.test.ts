@@ -41,7 +41,7 @@ function core() {
 }
 
 const todoistCalls = (o: ReturnType<typeof captureFetch>) =>
-  o.sent.filter((r) => r.url.includes('todoist') && !r.body?.parent_id).length;
+  o.sent.filter((r) => r.url.endsWith('/tasks') && !r.body?.parent_id).length;
 
 /** The private card, addressed to the reporter alone. */
 const cardEditAt = (o: ReturnType<typeof captureFetch>) =>
@@ -102,7 +102,7 @@ test('the alarm files an abandoned draft with needs-review', async () => {
     await obj.start(newDraft(), WINDOW);
     await obj.fire();
 
-    const filed = outbound.sent.find((r) => r.url.includes('todoist'))!;
+    const filed = outbound.sent.find((r) => r.url.endsWith('/tasks'))!;
     assert.ok(filed.body.labels.includes('needs-review'));
     assert.equal((await obj.read())!.status, 'filed');
     assert.ok(
@@ -235,7 +235,6 @@ test('a finished draft refuses edits instead of quietly accepting them', async (
     await obj.start(newDraft(), WINDOW);
     await obj.approve();
 
-    assert.equal(await obj.priority(4), null);
     assert.equal(
       await obj.edit({ title: 'x', url: null, why: null, subtasks: [] }),
       null,
@@ -250,7 +249,7 @@ test('an alarm Todoist rejects retries instead of dropping the report', async ()
   let todoist = 0;
   globalThis.fetch = (async (input: any) => {
     const url = String(input?.url ?? input);
-    if (url.includes('todoist')) {
+    if (url.endsWith('/tasks')) {
       todoist++;
       return new Response('nope', { status: 500 });
     }

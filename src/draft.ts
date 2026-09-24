@@ -39,9 +39,9 @@ export interface EditFields {
   subtasks: string[];
 }
 
-export type DraftAction = 'ok' | 'edit' | 'pr' | 'x';
+export type DraftAction = 'ok' | 'edit' | 'x';
 
-const ACTIONS: readonly DraftAction[] = ['ok', 'edit', 'pr', 'x'];
+const ACTIONS: readonly DraftAction[] = ['ok', 'edit', 'x'];
 
 /**
  * `d:` for components, `dm:` for the modals they open.
@@ -94,11 +94,6 @@ export function applyEdit(draft: Draft, fields: EditFields): Draft {
   };
 }
 
-export function applyPriority(draft: Draft, priority: number): Draft {
-  const valid = priority === 2 || priority === 3 || priority === 4 ? priority : 1;
-  return { ...draft, issue: { ...draft.issue, priority: valid } };
-}
-
 /** Ephemeral messages are private already; this guards a leaked custom_id. */
 export function isReporter(draft: Draft, userId: string | undefined): boolean {
   return userId !== undefined && userId === draft.reporterId;
@@ -114,7 +109,6 @@ export interface DraftStub {
   start(draft: Draft, windowMs: number): Promise<void>;
   read(): Promise<Draft | null>;
   edit(fields: EditFields): Promise<Draft | null>;
-  priority(value: number): Promise<Draft | null>;
   approve(): Promise<ProcessResult | 'closed'>;
   cancel(): Promise<Draft | null>;
 }

@@ -11,8 +11,6 @@ import type { DiscordAttachment } from './interaction.ts';
  */
 export interface NormalizedIssue {
   title: string;
-  /** Todoist scale: 1 = normal ... 4 = urgent. Inverted from p1-p4 in the UI. */
-  priority: 1 | 2 | 3 | 4;
   /** Page the issue is about: typed into the form, or found in the text. */
   url: string | null;
   /**
@@ -78,12 +76,11 @@ const MAX_TITLE_LENGTH = 100;
 export function fromRawInput(rawInput: string): NormalizedIssue {
   return {
     title: firstLine(rawInput),
-    priority: 1,
     url: null,
     why: null,
     // Splitting a report into separate pieces of work is the model's whole job,
     // so with no model there is nothing honest to put here. The reporter's text
-    // still reaches Todoist as the quote in the footer.
+    // still reaches Todoist as the description body.
     subtasks: [],
   };
 }
@@ -149,22 +146,10 @@ export function renderDescription(
     blocks.push(`**Gambar**\n${links}\n\n⚠️ Link Discord kedaluwarsa ~24 jam.`);
   }
 
-  const origin = context.sourceLink
-    ? `dari @${context.author} di [Discord](${context.sourceLink})`
-    : `dari @${context.author} di Discord`;
-  const source = context.filedBy ? `${origin} · dicatat oleh @${context.filedBy}` : origin;
-
-  // Kept whether or not the model ran. Once the description is no longer
-  // rendered as prose, this is the only record of what was actually reported,
-  // and the subtask list on the task is a machine's reading of it.
+  // Only when the model never ran: then the title is just the first line and
+  // there are no child tasks, so without this the report itself would be lost.
   const written = context.rawInput.trim();
-  const footer = written
-    ? `---\n📥 ${source}\n\n**Tulisan asli:**\n${quote(written)}`
-    : `---\n📥 ${source}`;
+  if (!context.normalized && written) blocks.push(written);
 
-  return blocks.length > 0 ? `${blocks.join('\n\n')}\n\n${footer}` : footer;
-}
-
-function quote(text: string): string {
-  return text.split('\n').map((line) => `> ${line}`).join('\n');
+  return blocks.join('\n\n');
 }

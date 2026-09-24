@@ -20,7 +20,6 @@ async function submit(e: Env, ctx: Omit<IssueContext, 'normalized'>, extraLabels
 
 const NORMALIZED = JSON.stringify({
   title: 'Checkout tertutup navbar di halaman produk',
-  priority: 2,
   url: 'https://toko.example.com/produk',
   subtasks: ['Benerin z-index navbar', 'Uji di iOS Safari'],
 });
@@ -80,7 +79,7 @@ function stubFetch(completion: string | null, failSubtasks = false) {
 }
 
 const todoistBody = (sent: any[]) =>
-  sent.find((r) => r.url.includes('todoist') && !r.body?.parent_id)!.body;
+  sent.find((r) => r.url.endsWith('/tasks') && !r.body?.parent_id)!.body;
 
 const childBodies = (sent: any[]) =>
   sent.filter((r) => r.url.includes('todoist') && r.body?.parent_id).map((r) => r.body);
@@ -94,10 +93,11 @@ test('with a provider configured, the issue reaches Todoist normalized', async (
     assert.equal(result.issue.title, 'Checkout tertutup navbar di halaman produk');
 
     const body = todoistBody(sent);
-    assert.equal(body.priority, 2);
+    assert.equal('priority' in body, false, 'priority is no longer set');
     assert.ok(!body.labels.includes(TRIAGE_LABEL), 'normalized issues do not need triage');
     assert.match(body.description, /\*\*Halaman\*\*/);
-    assert.match(body.description, /Tulisan asli/, 'the original wording must survive');
+    assert.doesNotMatch(body.description, /Tulisan asli/, 'the original wording is no longer repeated');
+    assert.doesNotMatch(body.description, /📥|dari @/, 'nor who reported it');
     assert.doesNotMatch(body.description, /\*\*Masalah\*\*/, 'prose sections are gone');
   } finally {
     restore();
@@ -308,6 +308,9 @@ function stubUploads(uploadStatus = 200) {
     if (url.includes('/comments')) {
       order.push('comment');
       return new Response('{"id":"1"}', { headers: { 'content-type': 'application/json' } });
+    }
+    if (url.includes('/sections')) {
+      return new Response('{"results":[]}', { headers: { 'content-type': 'application/json' } });
     }
     order.push('task');
     return new Response(JSON.stringify({ id: body?.parent_id ? '43' : '42' }), {

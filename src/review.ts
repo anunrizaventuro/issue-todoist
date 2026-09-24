@@ -7,14 +7,6 @@ const BLUE = 0x3b82f6;
 const AMBER = 0xf59e0b;
 const GREY = 0x6b7280;
 
-/** Todoist's scale, labelled the way the Todoist UI labels it. */
-const PRIORITIES = [
-  { value: '4', label: 'p1 — mendesak' },
-  { value: '3', label: 'p2 — tinggi' },
-  { value: '2', label: 'p3 — sedang' },
-  { value: '1', label: 'p4 — biasa' },
-];
-
 /**
  * The draft the reporter approves.
  *
@@ -56,22 +48,6 @@ export function reviewMessage(draft: Draft, minutes: number): Record<string, unk
           { type: 2, style: 3, label: 'Approve', custom_id: draftCustomId('ok', draft.id) },
           { type: 2, style: 2, label: 'Edit', custom_id: draftCustomId('edit', draft.id) },
           { type: 2, style: 4, label: 'Batal', custom_id: draftCustomId('x', draft.id) },
-        ],
-      },
-      {
-        type: 1,
-        components: [
-          {
-            // String Select. Priority has no room left in the modal, and it is
-            // the field the model gets wrong most often.
-            type: 3,
-            custom_id: draftCustomId('pr', draft.id),
-            placeholder: 'Prioritas',
-            options: PRIORITIES.map((p) => ({
-              ...p,
-              default: Number(p.value) === issue.priority,
-            })),
-          },
         ],
       },
     ],

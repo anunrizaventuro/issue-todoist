@@ -38,7 +38,7 @@ const flat = (message: any) => message.components.flatMap((row: any) => row.comp
 
 test('the card carries every action the reporter can take', () => {
   const ids = flat(reviewMessage(draft(), 10)).map((c: any) => c.custom_id);
-  assert.deepEqual(ids, [`d:ok:${ID}`, `d:edit:${ID}`, `d:x:${ID}`, `d:pr:${ID}`]);
+  assert.deepEqual(ids, [`d:ok:${ID}`, `d:edit:${ID}`, `d:x:${ID}`]);
   const buttons = (reviewMessage(draft(), 10) as any).components[0].components;
   assert.ok(buttons.length <= 5, 'Discord caps an Action Row at 5 buttons');
 });
@@ -52,11 +52,9 @@ test('the card is ephemeral', () => {
   assert.equal((reviewMessage(draft(), 10) as any).flags, 64);
 });
 
-test('the priority dropdown marks the one the model chose', () => {
-  const card = reviewMessage(draft({ issue: { ...fromRawInput('x'), priority: 3 } }), 10);
-  const select: any = flat(card).find((c: any) => c.type === 3);
-  assert.equal(select.options.filter((o: any) => o.default).length, 1, 'exactly one default');
-  assert.equal(select.options.find((o: any) => o.default).value, '3');
+test('the card offers no priority dropdown', () => {
+  const card = reviewMessage(draft(), 10);
+  assert.equal(flat(card).find((c: any) => c.type === 3), undefined);
 });
 
 test('everything that would be filed is shown, so nothing is approved unseen', () => {

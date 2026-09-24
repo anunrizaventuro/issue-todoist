@@ -30,12 +30,12 @@ test('a long title is cut at a word boundary, never mid-word', () => {
   assert.ok(!/\bpanjan…$/.test(title), 'must not slice mid-word');
 });
 
-test('a report with nothing but text still renders its origin and quote', () => {
+test('a report with nothing but text still keeps that text', () => {
   const issue = fromRawInput(base.rawInput);
   const body = renderDescription(issue, { ...base, normalized: false });
 
   assert.ok(body.includes(base.rawInput), 'the user text must survive verbatim');
-  assert.ok(body.includes('@rifa'));
+  assert.ok(!body.includes('@rifa'), 'the reporter is no longer named');
 });
 
 test('the description carries only what the title and child tasks cannot', () => {
@@ -53,18 +53,17 @@ test('the description carries only what the title and child tasks cannot', () =>
     !body.includes('Tombol checkout terlihat di mobile'),
     'the work list belongs to the child tasks, not repeated here',
   );
-  assert.ok(body.includes('> tombol checkout ga muncul di mobile'), 'original must be preserved');
+  assert.ok(!body.includes('tombol checkout ga muncul di mobile'), 'the original is not repeated');
+  assert.ok(!body.includes('dari @'), 'nor who reported it');
 });
 
-test('the original text is quoted even when the model ran', () => {
-  // With `problem` gone this quote is the only narrative record of what was
-  // actually reported, so it must not depend on normalization succeeding.
-  const issue = { ...fromRawInput(base.rawInput), subtasks: ['apa pun'] };
+test('the raw text is kept only when the model never ran', () => {
+  // Without the model the title is just the first line and there are no child
+  // tasks, so the text is the only record of what was reported.
+  const issue = fromRawInput(base.rawInput);
 
-  for (const normalized of [true, false]) {
-    const body = renderDescription(issue, { ...base, normalized });
-    assert.ok(body.includes('**Tulisan asli:**'), `hilang saat normalized=${normalized}`);
-  }
+  assert.ok(renderDescription(issue, { ...base, normalized: false }).includes(base.rawInput.trim()));
+  assert.equal(renderDescription(issue, { ...base, normalized: true }), '');
 });
 
 test('attachments are listed with their expiry warning', () => {
@@ -87,12 +86,12 @@ test('attachments are listed with their expiry warning', () => {
   assert.ok(body.includes('kedaluwarsa'), 'expiring links must be labelled as such');
 });
 
-test('a filer different from the writer is credited separately', () => {
+test('neither the writer nor the filer is named in the description', () => {
   const issue = fromRawInput(base.rawInput);
   const body = renderDescription(issue, { ...base, normalized: false, filedBy: 'anun' });
 
-  assert.ok(body.includes('@rifa'), 'the person who wrote it stays the reporter');
-  assert.ok(body.includes('dicatat oleh @anun'));
+  assert.ok(!body.includes('@rifa'));
+  assert.ok(!body.includes('@anun'));
 });
 
 test('no filer credit is shown when the same person did both', () => {
